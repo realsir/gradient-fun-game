@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>gradGame</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: monospace;
+      min-height: 100vh;
+      background: #ededed;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    #bgtext {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw; height: 100vh;
+      font-size: 22px;
+      line-height: 29px;
+      color: #111;
+      opacity: 0.15;
+      white-space: pre;
+      pointer-events: none;
+      z-index: 0;
+      user-select: none;
+      background: none;
+    }
+    .overlay {
+      position: fixed;
+      left: 0; top: 0; right: 0; bottom: 0;
+      z-index: 3;
+      background: rgba(255,255,255,0.82);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay-block {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 22px #3333;
+      padding: 45px 44px 32px 44px;
+      text-align: center;
+      font-size: 22px;
+      color: #181818;
+      min-width: 300px;
+      max-width: 95vw;
+    }
+    .big-btn {
+      display: inline-block;
+      margin-top: 36px;
+      padding: 14px 70px;
+      font-size: 24px;
+      background: #222;
+      color: #fafafa;
+      border: none;
+      border-radius: 7px;
+      letter-spacing: 0.1em;
+      box-shadow: 0 2px 18px #aaa2;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-family: monospace;
+      font-weight: 700;
+    }
+    .big-btn:hover, .big-btn:focus {
+      background: #111;
+    }
+    #ui { 
+      z-index: 1;
+      position: relative;
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      margin-top: 10px;
+    }
+    #stats {
+      font-size: 20px;
+      margin-bottom: 10px;
+      background: #fffde6ee;
+      padding: 5px 35px;
+      border-radius: 10px;
+      color: #1a1a1a;
+      margin-top: 10px;
+    }
+    #game {
+      display: grid;
+      grid-template-columns: repeat(30, 24px);
+      grid-template-rows: repeat(20, 24px);
+      gap: 0;
+      background: #fff;
+      border: 2px solid #666;
+      z-index: 1;
+      margin-bottom: 4px;
+    }
+    .cell {
+      width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 21px;
+      background: #fafafa;
+      border: 1px solid #bbb;
+      box-sizing: border-box;
+      user-select: none;
+      z-index: 2;
+    }
+    .black { color: #111 !important; font-weight: bold; }
+    .info-text {
+      color:#333; text-align:center; margin-bottom:14px;display:block;z-index:1;line-height:1.7
+    }
+    .hide { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="bgtext"></div>
+  <div id="welcome" class="overlay">
+    <div class="overlay-block">
+      <div style="font-size:25px;font-weight:700;margin-bottom:17px;">Welcome to "gradGame"</div>
+      You have a single goal – collect the combinations<br>
+      <span class="black">./</span> as quickly as you can!
+      <br>
+      <button class="big-btn" id="startBtn">GRAD</button>
+    </div>
+  </div>
+  <div id="gameover" class="overlay hide">
+    <div class="overlay-block" id="overmsg">
+      <div style="font-size:23px;margin-bottom:14px;">Time is up!</div>
+      Your score: <span id="finalscore"></span>
+      <br>
+      <button class="big-btn" id="restartBtn">Restart</button>
+    </div>
+  </div>
+  <div id="ui" class="hide">
+    <div id="stats">
+      Score: <span id="score">0</span> | Time: <span id="timer">30</span> sec
+    </div>
+    <div id="game"></div>
+    <span class="info-text">
+      Move the <span class="black">.</span> to the <span class="black">/</span> strictly from the left<br>
+      Only <span class="black">./</span> counts as a score!
+    </span>
+  </div>
+<script>
+  // Repeating background text
+  function fillBgText() {
+    let rows = Math.ceil(window.innerHeight / 29) + 2;
+    let cols = Math.ceil(window.innerWidth / 18);
+    let str = '';
+    let line = '';
+    let pattern = './ think open ';
+    for(let i = 0; i < Math.ceil(cols * 1.5); i++) line += pattern;
+    for(let i = 0; i < rows; i++) str += line.substr(0, cols*3) + '\n';
+    document.getElementById("bgtext").textContent = str;
+  }
+  window.addEventListener('resize', fillBgText);
+  fillBgText();
+
+  // GAME SETTINGS
+  const width = 30, height = 20, initialTime = 30;
+  let player, goal, score, time, interval, running, gameStarted = false;
+
+  const gameDiv = document.getElementById('game');
+  const scoreSpan = document.getElementById('score');
+  const timerSpan = document.getElementById('timer');
+  const uiDiv = document.getElementById('ui');
+  const welcomeDiv = document.getElementById('welcome');
+  const gameoverDiv = document.getElementById('gameover');
+  const finalscore = document.getElementById('finalscore');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+
+  function drawGrid() {
+    gameDiv.innerHTML = '';
+    for(let y=0; y<height; y++) {
+      for(let x=0; x<width; x++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (player.x === x && player.y === y) 
+          cell.innerHTML = '<span class="black">.</span>';
+        else if (goal.x === x && goal.y === y) 
+          cell.innerHTML = '<span class="black">/</span>';
+        else 
+          cell.innerHTML = '&nbsp;';
+        gameDiv.appendChild(cell);
+      }
+    }
+  }
+
+  function placeGoal() {
+    do {
+      goal.x = Math.floor(Math.random() * width);
+      goal.y = Math.floor(Math.random() * height);
+    } while ((goal.x === player.x && goal.y === player.y) || (goal.x === 0));
+  }
+
+  function movePlayer(dx, dy) {
+    if (!running || !gameStarted) return;
+    let newX = (player.x + dx + width) % width;
+    let newY = (player.y + dy + height) % height;
+    if (newX === goal.x && newY === goal.y && dx === 1) {
+      player.x = newX;
+      player.y = newY;
+      score++;
+      scoreSpan.textContent = score;
+      placeGoal();
+    } else if (!(newX === goal.x && newY === goal.y)) {
+      player.x = newX;
+      player.y = newY;
+    }
+    drawGrid();
+  }
+
+  function startTimer() {
+    timerSpan.textContent = time;
+    interval = setInterval(() => {
+      if (--time <= 0) {
+        clearInterval(interval);
+        running = false;
+        timerSpan.textContent = 0;
+        setTimeout(gameOver, 300);
+      } else {
+        timerSpan.textContent = time;
+      }
+    }, 1000);
+  }
+
+  function startGame() {
+    player = {x: 15, y: 10};
+    goal = {x: 0, y: 0};
+    score = 0; time = initialTime; running = true; gameStarted = true;
+    scoreSpan.textContent = '0';
+    timerSpan.textContent = initialTime;
+    placeGoal();
+    drawGrid();
+    uiDiv.classList.remove('hide');
+    welcomeDiv.classList.add('hide');
+    gameoverDiv.classList.add('hide');
+    startTimer();
+  }
+
+  function gameOver() {
+    gameStarted = false;
+    uiDiv.classList.add('hide');
+    gameoverDiv.classList.remove('hide');
+    finalscore.textContent = score;
+  }
+
+  // Controls: Arrow keys and WASD/русская
+  document.addEventListener('keydown', e => {
+    if (!running || !gameStarted) return;
+    if (['ArrowUp','w','W','ц','Ц'].includes(e.key)) movePlayer(0, -1);
+    if (['ArrowDown','s','S','ы','Ы'].includes(e.key)) movePlayer(0, 1);
+    if (['ArrowLeft','a','A','ф','Ф'].includes(e.key)) movePlayer(-1, 0);
+    if (['ArrowRight','d','D','в','В'].includes(e.key)) movePlayer(1, 0);
+  });
+
+  startBtn.onclick = startGame;
+  restartBtn.onclick = startGame;
+</script>
+</body>
+</html>
