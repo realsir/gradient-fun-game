@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>GradGame</title>
   <style>
     html, body {
@@ -25,7 +25,7 @@
       width: 100vw; height: 100vh;
       font-size: 22px;
       line-height: 29px;
-      color: #111;
+      color: #0b8a00;
       opacity: 0.15;
       white-space: pre;
       pointer-events: none;
@@ -99,6 +99,9 @@
       border: 2px solid #666;
       z-index: 1;
       margin-bottom: 4px;
+      position: relative; 
+      width: 720px;
+      height: 480px;
     }
     .cell {
       width: 24px; height: 24px;
@@ -115,24 +118,49 @@
       color:#333; text-align:center; margin-bottom:14px;display:block;z-index:1;line-height:1.7
     }
     .hide { display: none !important; }
+
+    .float-text {
+      position: absolute;
+      font-size: 18px;
+      color: #0b8a00;
+      font-weight: 700;
+      pointer-events: none;
+      z-index: 5;
+      animation: floatUp 0.9s ease-out forwards;
+    }
+    @keyframes floatUp {
+      0% {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -40px);
+      }
+    }
   </style>
 </head>
 <body>
   <div id="bgtext"></div>
   <div id="welcome" class="overlay">
     <div class="overlay-block">
-      <div style="font-size:25px;font-weight:700;margin-bottom:17px;">Welcome to "GradGame"</div>
-      You have a single goal – collect the combinations<br>
-      <span class="black">./</span> as quickly as you can!
-      <br>
+      <div style="font-size:25px;font-weight:700;margin-bottom:17px;">./ Welcome to "GradGame"</div>
+       You have a single goal – collect the combinations as quickly as you can!<br /><br>
+
+      <br>"–" these are now your advantages.<br>
+
+      <br>"," and these are your opponents, who are best left alone<br>
+
+      <br>"./" for each correctly completed combination, your current time increases by +2 sec.<br>
+      <br />
       <button class="big-btn" id="startBtn">GRAD</button>
     </div>
   </div>
   <div id="gameover" class="overlay hide">
     <div class="overlay-block" id="overmsg">
-      <div style="font-size:23px;margin-bottom:14px;">Time is up!</div>
+      <div style="font-size:23px;margin-bottom:14px;" id="gameOverMsg">Time is up!</div>
       Your score: <span id="finalscore"></span>
-      <br>
+      <br />
       <button class="big-btn" id="restartBtn">Restart</button>
     </div>
   </div>
@@ -141,124 +169,247 @@
       Score: <span id="score">0</span> | Time: <span id="timer">30</span> sec
     </div>
     <div id="game"></div>
-    <span class="info-text">
-      Move the <span class="black">.</span> to the <span class="black">/</span> strictly from the left<br>
-      Only <span class="black">./</span> counts as a score!
-    </span>
   </div>
-<script>
-  function fillBgText() {
-    let rows = Math.ceil(window.innerHeight / 29) + 2;
-    let cols = Math.ceil(window.innerWidth / 18);
-    let str = '';
-    let line = '';
-    let pattern = './ think open ';
-    for(let i = 0; i < Math.ceil(cols * 1.5); i++) line += pattern;
-    for(let i = 0; i < rows; i++) str += line.substr(0, cols*3) + '\n';
-    document.getElementById("bgtext").textContent = str;
-  }
-  window.addEventListener('resize', fillBgText);
-  fillBgText();
 
-  const width = 30, height = 20, initialTime = 30;
-  let player, goal, score, time, interval, running, gameStarted = false;
+  <script>
+    function fillBgText() {
+      let rows = Math.ceil(window.innerHeight / 29) + 2;
+      let cols = Math.ceil(window.innerWidth / 18);
+      let str = '';
+      let line = '';
+      let pattern = './ GradGame ';
+      for(let i = 0; i < Math.ceil(cols * 1.5); i++) line += pattern;
+      for(let i = 0; i < rows; i++) str += line.substr(0, cols*9) + '\n'; 
+      document.getElementById("bgtext").textContent = str;
+    }
+    window.addEventListener('resize', fillBgText);
+    fillBgText();
 
-  const gameDiv = document.getElementById('game');
-  const scoreSpan = document.getElementById('score');
-  const timerSpan = document.getElementById('timer');
-  const uiDiv = document.getElementById('ui');
-  const welcomeDiv = document.getElementById('welcome');
-  const gameoverDiv = document.getElementById('gameover');
-  const finalscore = document.getElementById('finalscore');
-  const startBtn = document.getElementById('startBtn');
-  const restartBtn = document.getElementById('restartBtn');
+    const width = 30, height = 20, initialTime = 30;
+    let player, goal, score, time, interval, running, gameStarted = false;
 
-  function drawGrid() {
-    gameDiv.innerHTML = '';
-    for(let y=0; y<height; y++) {
-      for(let x=0; x<width; x++) {
-        const cell = document.createElement('div');
-        cell.className = 'cell';
-        if (player.x === x && player.y === y) 
-          cell.innerHTML = '<span class="black">.</span>';
-        else if (goal.x === x && goal.y === y) 
-          cell.innerHTML = '<span class="black">/</span>';
-        else 
-          cell.innerHTML = '&nbsp;';
-        gameDiv.appendChild(cell);
+    const gameDiv = document.getElementById('game');
+    const scoreSpan = document.getElementById('score');
+    const timerSpan = document.getElementById('timer');
+    const uiDiv = document.getElementById('ui');
+    const welcomeDiv = document.getElementById('welcome');
+    const gameoverDiv = document.getElementById('gameover');
+    const finalscore = document.getElementById('finalscore');
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const gameOverMsg = document.getElementById('gameOverMsg');
+
+    const obstacles = [];
+    const enemies = [];
+    const MIN_OBS = 20;
+    const MAX_OBS = 30;
+    const MIN_ENEMIES = 20;
+    const MAX_ENEMIES = 28;
+
+    function isObstacle(x, y) {
+      return obstacles.some(o => o.x === x && o.y === y);
+    }
+
+    function isEnemy(x, y) {
+      return enemies.some(e => e.x === x && e.y === y);
+    }
+
+    function isNearGoal(x, y) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (goal.x + dx === x && goal.y + dy === y) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function generateObstaclesAndEnemies() {
+      obstacles.length = 0;
+      enemies.length = 0;
+
+      const obsCount = Math.floor(Math.random() * (MAX_OBS - MIN_OBS + 1)) + MIN_OBS;
+      let tries = 0;
+      while (obstacles.length < obsCount && tries < 1000) {
+        tries++;
+        const ox = Math.floor(Math.random() * width);
+        const oy = Math.floor(Math.random() * height);
+        if (
+          (ox === player.x && oy === player.y) ||
+          (ox === goal.x && oy === goal.y) ||
+          isObstacle(ox, oy) ||
+          isEnemy(ox, oy) ||
+          isNearGoal(ox, oy)
+        ) continue;
+        obstacles.push({x: ox, y: oy});
+      }
+
+      const enemyCount = Math.floor(Math.random() * (MAX_ENEMIES - MIN_ENEMIES + 1)) + MIN_ENEMIES;
+      tries = 0;
+      while (enemies.length < enemyCount && tries < 1500) {
+        tries++;
+        const ex = Math.floor(Math.random() * width);
+        const ey = Math.floor(Math.random() * height);
+        if (
+          (ex === player.x && ey === player.y) ||
+          (ex === goal.x && ey === goal.y) ||
+          isObstacle(ex, ey) ||
+          isEnemy(ex, ey) ||
+          isNearGoal(ex, ey)
+        ) continue;
+        enemies.push({x: ex, y: ey});
       }
     }
-  }
 
-  function placeGoal() {
-    do {
-      goal.x = Math.floor(Math.random() * width);
-      goal.y = Math.floor(Math.random() * height);
-    } while ((goal.x === player.x && goal.y === player.y) || (goal.x === 0));
-  }
+    function drawGrid() {
+      gameDiv.innerHTML = '';
+      for(let y=0; y<height; y++) {
+        for(let x=0; x<width; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          if (player.x === x && player.y === y) {
+            cell.innerHTML = '<span class="black">.</span>';
+          } else if (goal.x === x && goal.y === y) {
+            cell.innerHTML = '<span class="black">/</span>';
+          } else if (isEnemy(x, y)) {
+            cell.innerHTML = '<span class="black">,</span>';
+          } else if (isObstacle(x, y)) {
+            cell.innerHTML = '<span class="black">-</span>';
+          } else {
+            cell.innerHTML = '&nbsp;';
+          }
+          gameDiv.appendChild(cell);
+        }
+      }
+    }
 
-  function movePlayer(dx, dy) {
-    if (!running || !gameStarted) return;
-    let newX = (player.x + dx + width) % width;
-    let newY = (player.y + dy + height) % height;
-    if (newX === goal.x && newY === goal.y && dx === 1) {
-      player.x = newX;
-      player.y = newY;
-      score++;
-      scoreSpan.textContent = score;
+    function placeGoal() {
+      do {
+        goal.x = Math.floor(Math.random() * width);
+        goal.y = Math.floor(Math.random() * height);
+      } while (
+        (goal.x === player.x && goal.y === player.y) ||
+        (goal.x === 0) ||
+        isObstacle(goal.x, goal.y) ||
+        isEnemy(goal.x, goal.y)
+      );
+    }
+
+    function showPlusTime(x, y) {
+      const float = document.createElement('div');
+      float.className = 'float-text';
+      float.textContent = '+2 sec';
+
+      const cellSize = 24;
+      const offsetX = x * cellSize + cellSize / 2;
+      const offsetY = y * cellSize + cellSize / 2;
+
+      float.style.left = offsetX + 'px';
+      float.style.top = offsetY + 'px';
+
+      gameDiv.appendChild(float);
+
+      setTimeout(() => {
+        if (float.parentNode) float.parentNode.removeChild(float);
+      }, 1000);
+    }
+
+    function addTime(seconds) {
+      time += seconds;
+      timerSpan.textContent = time;
+    }
+
+    function gameOver(msg = "Time is up!") {
+      gameStarted = false;
+      running = false;
+      uiDiv.classList.add('hide');
+      gameoverDiv.classList.remove('hide');
+      gameOverMsg.textContent = msg;
+      finalscore.textContent = score;
+    }
+
+    function movePlayer(dx, dy) {
+      if (!running || !gameStarted) return;
+
+      let newX = (player.x + dx + width) % width;
+      let newY = (player.y + dy + height) % height;
+
+      if (isObstacle(newX, newY)) {
+        return;
+      }
+      if (isEnemy(newX, newY)) {
+        gameOver("You bumped into an opponent (,)");
+        return;
+      }
+
+      if (newX === goal.x && newY === goal.y && dx === 1) {
+        player.x = newX;
+        player.y = newY;
+        score++;
+        scoreSpan.textContent = score;
+
+        addTime(2);
+        showPlusTime(newX, newY);
+
+        placeGoal();
+        generateObstaclesAndEnemies();
+      } else if (!(newX === goal.x && newY === goal.y)) {
+        player.x = newX;
+        player.y = newY;
+      }
+
+      drawGrid();
+    }
+
+    function startTimer() {
+      clearInterval(interval);
+      timerSpan.textContent = time;
+      interval = setInterval(() => {
+        time--;
+        if (time <= 0) {
+          time = 0;
+          timerSpan.textContent = 0;
+          clearInterval(interval);
+          running = false;
+          setTimeout(gameOver, 300);
+        } else {
+          timerSpan.textContent = time;
+        }
+      }, 1000);
+    }
+
+    function startGame() {
+      player = {x: 15, y: 10};
+      goal = {x: 0, y: 0};
+      score = 0;
+      time = initialTime;
+      running = true;
+      gameStarted = true;
+      scoreSpan.textContent = '0';
+      timerSpan.textContent = initialTime;
+
       placeGoal();
-    } else if (!(newX === goal.x && newY === goal.y)) {
-      player.x = newX;
-      player.y = newY;
+      generateObstaclesAndEnemies();
+      drawGrid();
+
+      uiDiv.classList.remove('hide');
+      welcomeDiv.classList.add('hide');
+      gameoverDiv.classList.add('hide');
+      startTimer();
     }
-    drawGrid();
-  }
 
-  function startTimer() {
-    timerSpan.textContent = time;
-    interval = setInterval(() => {
-      if (--time <= 0) {
-        clearInterval(interval);
-        running = false;
-        timerSpan.textContent = 0;
-        setTimeout(gameOver, 300);
-      } else {
-        timerSpan.textContent = time;
-      }
-    }, 1000);
-  }
+    document.addEventListener('keydown', e => {
+      if (!running || !gameStarted) return;
+      if (['ArrowUp','w','W','ц','Ц'].includes(e.key)) movePlayer(0, -1);
+      if (['ArrowDown','s','S','ы','Ы'].includes(e.key)) movePlayer(0, 1);
+      if (['ArrowLeft','a','A','ф','Ф'].includes(e.key)) movePlayer(-1, 0);
+      if (['ArrowRight','d','D','в','В'].includes(e.key)) movePlayer(1, 0);
+    });
 
-  function startGame() {
-    player = {x: 15, y: 10};
-    goal = {x: 0, y: 0};
-    score = 0; time = initialTime; running = true; gameStarted = true;
-    scoreSpan.textContent = '0';
-    timerSpan.textContent = initialTime;
-    placeGoal();
-    drawGrid();
-    uiDiv.classList.remove('hide');
-    welcomeDiv.classList.add('hide');
-    gameoverDiv.classList.add('hide');
-    startTimer();
-  }
-
-  function gameOver() {
-    gameStarted = false;
-    uiDiv.classList.add('hide');
-    gameoverDiv.classList.remove('hide');
-    finalscore.textContent = score;
-  }
-
-  document.addEventListener('keydown', e => {
-    if (!running || !gameStarted) return;
-    if (['ArrowUp','w','W','ц','Ц'].includes(e.key)) movePlayer(0, -1);
-    if (['ArrowDown','s','S','ы','Ы'].includes(e.key)) movePlayer(0, 1);
-    if (['ArrowLeft','a','A','ф','Ф'].includes(e.key)) movePlayer(-1, 0);
-    if (['ArrowRight','d','D','в','В'].includes(e.key)) movePlayer(1, 0);
-  });
-
-  startBtn.onclick = startGame;
-  restartBtn.onclick = startGame;
-</script>
+    startBtn.onclick = startGame;
+    restartBtn.onclick = startGame;
+  </script>
 </body>
 </html>
+
