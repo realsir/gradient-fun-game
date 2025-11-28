@@ -90,6 +90,12 @@
       color: #1a1a1a;
       margin-top: 10px;
     }
+    #gameContainer {
+      position: relative;
+      width: 720px;
+      height: 480px;
+      margin-bottom: 4px;
+    }
     #game {
       display: grid;
       grid-template-columns: repeat(30, 24px);
@@ -98,10 +104,9 @@
       background: #fff;
       border: 2px solid #666;
       z-index: 1;
-      margin-bottom: 4px;
-      position: relative; 
-      width: 720px;
-      height: 480px;
+      position: absolute;
+      top: 0;
+      left: 0;
     }
     .cell {
       width: 24px; height: 24px;
@@ -125,18 +130,36 @@
       color: #0b8a00;
       font-weight: 700;
       pointer-events: none;
-      z-index: 5;
-      animation: floatUp 0.9s ease-out forwards;
+      z-index: 6;
+      animation: floatUp 1.2s ease-out forwards;
     }
     @keyframes floatUp {
       0% {
         opacity: 1;
-        transform: translate(-50%, 0);
+        transform: translate(-50%, 0) scale(1);
+      }
+      50% {
+        transform: translate(-50%, -20px) scale(1.2);
       }
       100% {
         opacity: 0;
-        transform: translate(-50%, -40px);
+        transform: translate(-50%, -50px) scale(0.8);
       }
+    }
+    #pauseOverlay {
+      position: fixed;
+      z-index: 10;
+      background: rgba(11, 138, 0, 0.7);
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      color: #fff;
+      font-weight: 700;
+      user-select: none;
+      font-family: monospace;
+      letter-spacing: 0.2em;
     }
   </style>
 </head>
@@ -152,23 +175,31 @@
       <br>"," and these are your opponents, who are best left alone<br>
 
       <br>"./" for each correctly completed combination, your current time increases by +2 sec.<br>
+
+      <br>"*" bonuses give +5 points and +3 sec.<br>
+
+      <br>"SPACE" for pause/unpause.
       <br />
-      <button class="big-btn" id="startBtn">GRAD</button>
+      <button class="big-btn" id="startBtn">./ GRAD</button>
     </div>
   </div>
   <div id="gameover" class="overlay hide">
     <div class="overlay-block" id="overmsg">
       <div style="font-size:23px;margin-bottom:14px;" id="gameOverMsg">Time is up!</div>
-      Your score: <span id="finalscore"></span>
+      Your score: <span id="finalscore"></span><br>
+      High score: <span id="highscore"></span>
       <br />
-      <button class="big-btn" id="restartBtn">Restart</button>
+      <button class="big-btn" id="restartBtn">./ Restart</button>
     </div>
   </div>
+  <div id="pauseOverlay">./ PAUSED</div>
   <div id="ui" class="hide">
     <div id="stats">
-      Score: <span id="score">0</span> | Time: <span id="timer">30</span> sec
+      Score: <span id="score">0</span> | Time: <span id="timer">30</span> sec | High score: <span id="highscoreTop">0</span>
     </div>
-    <div id="game"></div>
+    <div id="gameContainer">
+      <div id="game"></div>
+    </div>
   </div>
 
   <script>
@@ -186,8 +217,9 @@
     fillBgText();
 
     const width = 30, height = 20, initialTime = 30;
-    let player, goal, score, time, interval, running, gameStarted = false;
+    let player, goal, score, time, interval, running, gameStarted = false, paused = false;
 
+    const gameContainer = document.getElementById('gameContainer');
     const gameDiv = document.getElementById('game');
     const scoreSpan = document.getElementById('score');
     const timerSpan = document.getElementById('timer');
@@ -195,12 +227,16 @@
     const welcomeDiv = document.getElementById('welcome');
     const gameoverDiv = document.getElementById('gameover');
     const finalscore = document.getElementById('finalscore');
+    const highscoreSpan = document.getElementById('highscore');
+    const highscoreTop = document.getElementById('highscoreTop');
     const startBtn = document.getElementById('startBtn');
     const restartBtn = document.getElementById('restartBtn');
     const gameOverMsg = document.getElementById('gameOverMsg');
+    const pauseOverlay = document.getElementById('pauseOverlay');
 
     const obstacles = [];
     const enemies = [];
+    const powerups = [];
     const MIN_OBS = 20;
     const MAX_OBS = 30;
     const MIN_ENEMIES = 20;
@@ -214,6 +250,10 @@
       return enemies.some(e => e.x === x && e.y === y);
     }
 
+    function isPowerup(x, y) {
+      return powerups.some(p => p.x === x && p.y === y);
+    }
+
     function isNearGoal(x, y) {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
@@ -225,9 +265,10 @@
       return false;
     }
 
-    function generateObstaclesAndEnemies() {
+    function generateObstaclesAndEnemiesAndPowerups() {
       obstacles.length = 0;
       enemies.length = 0;
+      powerups.length = 0;
 
       const obsCount = Math.floor(Math.random() * (MAX_OBS - MIN_OBS + 1)) + MIN_OBS;
       let tries = 0;
@@ -240,6 +281,7 @@
           (ox === goal.x && oy === goal.y) ||
           isObstacle(ox, oy) ||
           isEnemy(ox, oy) ||
+          isPowerup(ox, oy) ||
           isNearGoal(ox, oy)
         ) continue;
         obstacles.push({x: ox, y: oy});
@@ -256,9 +298,27 @@
           (ex === goal.x && ey === goal.y) ||
           isObstacle(ex, ey) ||
           isEnemy(ex, ey) ||
+          isPowerup(ex, ey) ||
           isNearGoal(ex, ey)
         ) continue;
         enemies.push({x: ex, y: ey});
+      }
+
+      const powerupCount = 3;
+      tries = 0;
+      while (powerups.length < powerupCount && tries < 1000) {
+        tries++;
+        const px = Math.floor(Math.random() * width);
+        const py = Math.floor(Math.random() * height);
+        if (
+          (px === player.x && py === player.y) ||
+          (px === goal.x && py === goal.y) ||
+          isObstacle(px, py) ||
+          isEnemy(px, py) ||
+          isPowerup(px, py) ||
+          isNearGoal(px, py)
+        ) continue;
+        powerups.push({x: px, y: py});
       }
     }
 
@@ -276,6 +336,8 @@
             cell.innerHTML = '<span class="black">,</span>';
           } else if (isObstacle(x, y)) {
             cell.innerHTML = '<span class="black">-</span>';
+          } else if (isPowerup(x, y)) {
+            cell.innerHTML = '<span class="black">*</span>';
           } else {
             cell.innerHTML = '&nbsp;';
           }
@@ -292,14 +354,15 @@
         (goal.x === player.x && goal.y === player.y) ||
         (goal.x === 0) ||
         isObstacle(goal.x, goal.y) ||
-        isEnemy(goal.x, goal.y)
+        isEnemy(goal.x, goal.y) ||
+        isPowerup(goal.x, goal.y)
       );
     }
 
-    function showPlusTime(x, y) {
+    function showPlusTime(x, y, text) {
       const float = document.createElement('div');
       float.className = 'float-text';
-      float.textContent = '+2 sec';
+      float.textContent = text;
 
       const cellSize = 24;
       const offsetX = x * cellSize + cellSize / 2;
@@ -308,11 +371,13 @@
       float.style.left = offsetX + 'px';
       float.style.top = offsetY + 'px';
 
-      gameDiv.appendChild(float);
+      gameContainer.appendChild(float);
 
       setTimeout(() => {
-        if (float.parentNode) float.parentNode.removeChild(float);
-      }, 1000);
+        if (float.parentNode) {
+          float.parentNode.removeChild(float);
+        }
+      }, 1300);
     }
 
     function addTime(seconds) {
@@ -327,10 +392,17 @@
       gameoverDiv.classList.remove('hide');
       gameOverMsg.textContent = msg;
       finalscore.textContent = score;
+      let highscore = localStorage.getItem('gradHighScore') || 0;
+      if (score > highscore) {
+        localStorage.setItem('gradHighScore', score);
+        highscore = score;
+      }
+      highscoreSpan.textContent = highscore;
+      highscoreTop.textContent = highscore;
     }
 
     function movePlayer(dx, dy) {
-      if (!running || !gameStarted) return;
+      if (!running || !gameStarted || paused) return;
 
       let newX = (player.x + dx + width) % width;
       let newY = (player.y + dy + height) % height;
@@ -343,17 +415,28 @@
         return;
       }
 
+      if (isPowerup(newX, newY)) {
+        score += 5;
+        addTime(3);
+        showPlusTime(newX, newY, './ +3 sec +5 points');
+        const idx = powerups.findIndex(p => p.x === newX && p.y === newY);
+        if (idx !== -1) powerups.splice(idx, 1);
+        player.x = newX;
+        player.y = newY;
+        scoreSpan.textContent = score;
+        drawGrid();
+        return;
+      }
+
       if (newX === goal.x && newY === goal.y && dx === 1) {
         player.x = newX;
         player.y = newY;
         score++;
         scoreSpan.textContent = score;
-
         addTime(2);
-        showPlusTime(newX, newY);
-
+        showPlusTime(newX, newY, './ +2 sec');
         placeGoal();
-        generateObstaclesAndEnemies();
+        generateObstaclesAndEnemiesAndPowerups();
       } else if (!(newX === goal.x && newY === goal.y)) {
         player.x = newX;
         player.y = newY;
@@ -366,15 +449,17 @@
       clearInterval(interval);
       timerSpan.textContent = time;
       interval = setInterval(() => {
-        time--;
-        if (time <= 0) {
-          time = 0;
-          timerSpan.textContent = 0;
-          clearInterval(interval);
-          running = false;
-          setTimeout(gameOver, 300);
-        } else {
-          timerSpan.textContent = time;
+        if (!paused) {
+          time--;
+          if (time <= 0) {
+            time = 0;
+            timerSpan.textContent = 0;
+            clearInterval(interval);
+            running = false;
+            setTimeout(gameOver, 300);
+          } else {
+            timerSpan.textContent = time;
+          }
         }
       }, 1000);
     }
@@ -386,25 +471,36 @@
       time = initialTime;
       running = true;
       gameStarted = true;
+      paused = false;
       scoreSpan.textContent = '0';
       timerSpan.textContent = initialTime;
 
       placeGoal();
-      generateObstaclesAndEnemies();
+      generateObstaclesAndEnemiesAndPowerups();
       drawGrid();
 
       uiDiv.classList.remove('hide');
       welcomeDiv.classList.add('hide');
       gameoverDiv.classList.add('hide');
+      pauseOverlay.style.display = 'none';
+      highscoreTop.textContent = localStorage.getItem('gradHighScore') || 0;
       startTimer();
     }
 
     document.addEventListener('keydown', e => {
-      if (!running || !gameStarted) return;
-      if (['ArrowUp','w','W','ц','Ц'].includes(e.key)) movePlayer(0, -1);
-      if (['ArrowDown','s','S','ы','Ы'].includes(e.key)) movePlayer(0, 1);
-      if (['ArrowLeft','a','A','ф','Ф'].includes(e.key)) movePlayer(-1, 0);
-      if (['ArrowRight','d','D','в','В'].includes(e.key)) movePlayer(1, 0);
+      if (e.code === 'Space') {
+        e.preventDefault();
+      }
+      if (e.code === 'Space' && gameStarted && running) {
+        paused = !paused;
+        pauseOverlay.style.display = paused ? 'flex' : 'none';
+        return;
+      }
+      if (!running || !gameStarted || paused) return;
+      if (['ArrowUp','KeyW','KeyЦ'].includes(e.code)) movePlayer(0, -1);
+      if (['ArrowDown','KeyS','KeyЫ'].includes(e.code)) movePlayer(0, 1);
+      if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) movePlayer(-1, 0);
+      if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) movePlayer(1, 0);
     });
 
     startBtn.onclick = startGame;
