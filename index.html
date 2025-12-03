@@ -56,7 +56,7 @@
     }
     .big-btn {
       display: inline-block;
-      margin-top: 36px;
+      margin-top: 18px;
       padding: 14px 70px;
       font-size: 24px;
       background: #222;
@@ -73,6 +73,19 @@
     .big-btn:hover, .big-btn:focus {
       background: #111;
     }
+    .btn-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .mode-desc {
+      margin-top: 10px;
+      color: #555;
+      font-size: 18px;
+      line-height: 1.5;
+      max-width: 400px;
+    }
     #ui { 
       z-index: 1;
       position: relative;
@@ -81,14 +94,36 @@
       flex-direction: column;
       margin-top: 10px;
     }
+    .ui-top-row {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
     #stats {
       font-size: 20px;
-      margin-bottom: 10px;
       background: #fffde6ee;
       padding: 5px 35px;
       border-radius: 10px;
       color: #1a1a1a;
-      margin-top: 10px;
+      white-space: nowrap;
+    }
+    #menuBtn {
+      padding: 5px 25px;
+      font-size: 18px;
+      background: #fffde6ee;
+      color: #1a1a1a;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: monospace;
+      font-weight: 600;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    #menuBtn:hover {
+      background: #fff;
+      border-color: #bbb;
     }
     #gameContainer {
       position: relative;
@@ -119,9 +154,6 @@
       z-index: 2;
     }
     .black { color: #111 !important; font-weight: bold; }
-    .info-text {
-      color:#333; text-align:center; margin-bottom:14px;display:block;z-index:1;line-height:1.7
-    }
     .hide { display: none !important; }
 
     .float-text {
@@ -165,37 +197,82 @@
 </head>
 <body>
   <div id="bgtext"></div>
+  
   <div id="welcome" class="overlay">
     <div class="overlay-block">
       <div style="font-size:25px;font-weight:700;margin-bottom:17px;">./ Welcome to "GradGame"</div>
-       You have a single goal – collect the combinations as quickly as you can!<br /><br>
-
-      <br>"–" these are now your advantages.<br>
-
-      <br>"," and these are your opponents, who are best left alone<br>
-
-      <br>"./" for each correctly completed combination, your current time increases by +2 sec.<br>
-
-      <br>"*" bonuses give +5 points and +3 sec.<br>
-
-      <br>"SPACE" for pause/unpause.
-      <br />
-      <button class="big-btn" id="startBtn">./ GRAD</button>
+      
+      <div style="margin-bottom: 25px;">
+        <div>Choose your game mode:</div>
+      </div>
+      
+      <div class="btn-row">
+        <div style="text-align: center;">
+          <button class="big-btn" id="gradBtn">./ GRAD MODE+</button>
+          <div class="mode-desc">
+            You have a single goal – collect the combinations as quickly as you can!<br><br>
+            1. "–" these are now your advantages.<br>
+            2. "," and these are your opponents, who are best left alone<br>
+            3. "./" for each correctly completed combination, your current time increases by +2 sec.<br>
+            4. "*" bonuses give +5 points and +3 sec.<br>
+            5. "SPACE" for pause/unpause.
+          </div>
+        </div>
+        
+        <div style="text-align: center;">
+          <button class="big-btn" id="classicBtn">./ GRAD CLASSIC</button>
+          <div class="mode-desc">
+            Only you (.) and the opponent (/) playing the classic way.<br><br>
+            1. "SPACE" for pause/unpause.
+          </div>
+        </div>
+        
+        <div style="text-align: center;">
+          <button class="big-btn" id="survivalBtn">./ GRAD SURVIVAL</button>
+          <div class="mode-desc">
+            Survive 30 seconds against 15 moving enemies (/).<br><br>
+            1. Enemies chase you every second. Game Over if ANY enemy gets adjacent!<br>
+            2. "SPACE" for pause/unpause.
+          </div>
+        </div>
+      </div>
     </div>
   </div>
+  
   <div id="gameover" class="overlay hide">
     <div class="overlay-block" id="overmsg">
       <div style="font-size:23px;margin-bottom:14px;" id="gameOverMsg">Time is up!</div>
       Your score: <span id="finalscore"></span><br>
       High score: <span id="highscore"></span>
       <br />
-      <button class="big-btn" id="restartBtn">./ Restart</button>
+      <div class="btn-row">
+        <button class="big-btn" id="restartBtn">./ Restart</button>
+        <button class="big-btn" id="menuBtnGameover">./ Menu</button>
+      </div>
     </div>
   </div>
+  
+  <div id="victory" class="overlay hide">
+    <div class="overlay-block" id="victorymsg">
+      <div style="font-size:23px;margin-bottom:14px;color:#0b8a00;">./ YOU WIN!</div>
+      Survival time: <span id="victoryscore"></span><br>
+      Best survival: <span id="victoryhighscore"></span>
+      <br />
+      <div class="btn-row">
+        <button class="big-btn" id="restartBtnVictory">./ Restart</button>
+        <button class="big-btn" id="menuBtnVictory">./ Menu</button>
+      </div>
+    </div>
+  </div>
+  
   <div id="pauseOverlay">./ PAUSED</div>
+  
   <div id="ui" class="hide">
-    <div id="stats">
-      Score: <span id="score">0</span> | Time: <span id="timer">30</span> sec | High score: <span id="highscoreTop">0</span>
+    <div class="ui-top-row">
+      <button id="menuBtn">./ Menu</button>
+      <div id="stats">
+        Score: <span id="score">0</span> | Time: <span id="timer">30</span> sec | High score: <span id="highscoreTop">0</span>
+      </div>
     </div>
     <div id="gameContainer">
       <div id="game"></div>
@@ -217,7 +294,8 @@
     fillBgText();
 
     const width = 30, height = 20, initialTime = 30;
-    let player, goal, score, time, interval, running, gameStarted = false, paused = false;
+    let player, goal, score, time, interval, running, gameStarted = false, paused = false, currentMode = '';
+    let enemies = [], survivalEnemiesMoveInterval;
 
     const gameContainer = document.getElementById('gameContainer');
     const gameDiv = document.getElementById('game');
@@ -226,38 +304,69 @@
     const uiDiv = document.getElementById('ui');
     const welcomeDiv = document.getElementById('welcome');
     const gameoverDiv = document.getElementById('gameover');
+    const victoryDiv = document.getElementById('victory');
     const finalscore = document.getElementById('finalscore');
+    const victoryscore = document.getElementById('victoryscore');
     const highscoreSpan = document.getElementById('highscore');
     const highscoreTop = document.getElementById('highscoreTop');
-    const startBtn = document.getElementById('startBtn');
-    const restartBtn = document.getElementById('restartBtn');
-    const gameOverMsg = document.getElementById('gameOverMsg');
+    const victoryhighscore = document.getElementById('victoryhighscore');
     const pauseOverlay = document.getElementById('pauseOverlay');
+    const menuBtn = document.getElementById('menuBtn');
+    const menuBtnGameover = document.getElementById('menuBtnGameover');
+    const menuBtnVictory = document.getElementById('menuBtnVictory');
+    const gradBtn = document.getElementById('gradBtn');
+    const classicBtn = document.getElementById('classicBtn');
+    const survivalBtn = document.getElementById('survivalBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const restartBtnVictory = document.getElementById('restartBtnVictory');
+    const gameOverMsg = document.getElementById('gameOverMsg');
 
-    const obstacles = [];
-    const enemies = [];
-    const powerups = [];
-    const MIN_OBS = 20;
-    const MAX_OBS = 30;
-    const MIN_ENEMIES = 20;
-    const MAX_ENEMIES = 28;
+    let obstacles = [], powerups = [], staticEnemies = [];
+
+    function showMenu() {
+      gameStarted = false;
+      running = false;
+      paused = false;
+      clearInterval(interval);
+      clearInterval(survivalEnemiesMoveInterval);
+      uiDiv.classList.add('hide');
+      welcomeDiv.classList.remove('hide');
+      gameoverDiv.classList.add('hide');
+      victoryDiv.classList.add('hide');
+      pauseOverlay.style.display = 'none';
+      gameDiv.innerHTML = '';
+    }
 
     function isObstacle(x, y) {
       return obstacles.some(o => o.x === x && o.y === y);
     }
 
-    function isEnemy(x, y) {
-      return enemies.some(e => e.x === x && e.y === y);
+    function isStaticEnemy(x, y) {
+      return staticEnemies.some(e => e.x === x && e.y === y);
     }
 
     function isPowerup(x, y) {
       return powerups.some(p => p.x === x && p.y === y);
     }
 
-    function isNearGoal(x, y) {
+    function isSurvivalEnemy(x, y) {
+      return enemies.some(e => e.x === x && e.y === y);
+    }
+
+    function isPositionOccupied(x, y) {
+      return (x === player.x && y === player.y) || isSurvivalEnemy(x, y);
+    }
+
+    
+    function isEnemyAdjacentToPlayer() {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
-          if (goal.x + dx === x && goal.y + dy === y) {
+          if (dx === 0 && dy === 0) continue; 
+          
+          let checkX = (player.x + dx + width) % width;
+          let checkY = (player.y + dy + height) % height;
+          
+          if (isSurvivalEnemy(checkX, checkY)) {
             return true;
           }
         }
@@ -265,10 +374,25 @@
       return false;
     }
 
-    function generateObstaclesAndEnemiesAndPowerups() {
-      obstacles.length = 0;
-      enemies.length = 0;
-      powerups.length = 0;
+    function generateSurvivalEnemies() {
+      enemies = [];
+      let tries = 0;
+      while (enemies.length < 15 && tries < 1000) {
+        tries++;
+        const ex = Math.floor(Math.random() * width);
+        const ey = Math.floor(Math.random() * height);
+        if (isPositionOccupied(ex, ey) || enemies.some(e => e.x === ex && e.y === ey)) continue;
+        enemies.push({x: ex, y: ey});
+      }
+    }
+
+    function generateFullMode() {
+      obstacles = [];
+      staticEnemies = [];
+      powerups = [];
+      
+      const MIN_OBS = 20, MAX_OBS = 30;
+      const MIN_ENEMIES = 3, MAX_ENEMIES = 5;
 
       const obsCount = Math.floor(Math.random() * (MAX_OBS - MIN_OBS + 1)) + MIN_OBS;
       let tries = 0;
@@ -276,20 +400,13 @@
         tries++;
         const ox = Math.floor(Math.random() * width);
         const oy = Math.floor(Math.random() * height);
-        if (
-          (ox === player.x && oy === player.y) ||
-          (ox === goal.x && oy === goal.y) ||
-          isObstacle(ox, oy) ||
-          isEnemy(ox, oy) ||
-          isPowerup(ox, oy) ||
-          isNearGoal(ox, oy)
-        ) continue;
+        if (isNearGoal(ox, oy) || (ox === player.x && oy === player.y) || (ox === goal.x && oy === goal.y)) continue;
         obstacles.push({x: ox, y: oy});
       }
 
       const enemyCount = Math.floor(Math.random() * (MAX_ENEMIES - MIN_ENEMIES + 1)) + MIN_ENEMIES;
       tries = 0;
-      while (enemies.length < enemyCount && tries < 1500) {
+      while (staticEnemies.length < enemyCount && tries < 500) {
         tries++;
         const ex = Math.floor(Math.random() * width);
         const ey = Math.floor(Math.random() * height);
@@ -297,11 +414,10 @@
           (ex === player.x && ey === player.y) ||
           (ex === goal.x && ey === goal.y) ||
           isObstacle(ex, ey) ||
-          isEnemy(ex, ey) ||
-          isPowerup(ex, ey) ||
-          isNearGoal(ex, ey)
+          isNearGoal(ex, ey) ||
+          staticEnemies.some(e => e.x === ex && e.y === ey)
         ) continue;
-        enemies.push({x: ex, y: ey});
+        staticEnemies.push({x: ex, y: ey});
       }
 
       const powerupCount = 3;
@@ -311,32 +427,94 @@
         const px = Math.floor(Math.random() * width);
         const py = Math.floor(Math.random() * height);
         if (
-          (px === player.x && py === player.y) ||
+          isNearGoal(px, py) || 
+          (px === player.x && py === player.y) || 
           (px === goal.x && py === goal.y) ||
           isObstacle(px, py) ||
-          isEnemy(px, py) ||
-          isPowerup(px, py) ||
-          isNearGoal(px, py)
+          isStaticEnemy(px, py)
         ) continue;
         powerups.push({x: px, y: py});
       }
     }
 
+    function moveSurvivalEnemies() {
+      
+      if (isEnemyAdjacentToPlayer()) {
+        gameOver("Enemy too close!");
+        return;
+      }
+
+      let movedEnemies = [];
+      enemies.forEach(enemy => {
+        let bestDx = 0, bestDy = 0, bestDist = Infinity;
+        
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            if (dx === 0 && dy === 0) continue;
+            let nx = (enemy.x + dx + width) % width;
+            let ny = (enemy.y + dy + height) % height;
+            
+            let occupied = isPositionOccupied(nx, ny) || 
+                          movedEnemies.some(m => m.x === nx && m.y === ny);
+            
+            let dist = Math.abs(nx - player.x) + Math.abs(ny - player.y);
+            if (!occupied && dist < bestDist) {
+              bestDist = dist;
+              bestDx = dx;
+              bestDy = dy;
+            }
+          }
+        }
+        
+        let newX = (enemy.x + bestDx + width) % width;
+        let newY = (enemy.y + bestDy + height) % height;
+        enemy.x = newX;
+        enemy.y = newY;
+        movedEnemies.push({x: newX, y: newY});
+      });
+      
+      
+      if (isEnemyAdjacentToPlayer()) {
+        gameOver("Enemy too close!");
+      } else {
+        drawGrid();
+      }
+    }
+
+    function generateClassicMode() {
+      obstacles = [];
+      staticEnemies = [];
+      powerups = [];
+    }
+
+    function isNearGoal(x, y) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (goal.x + dx === x && goal.y + dy === y) return true;
+        }
+      }
+      return false;
+    }
+
     function drawGrid() {
       gameDiv.innerHTML = '';
-      for(let y=0; y<height; y++) {
-        for(let x=0; x<width; x++) {
+      for(let y = 0; y < height; y++) {
+        for(let x = 0; x < width; x++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
           if (player.x === x && player.y === y) {
             cell.innerHTML = '<span class="black">.</span>';
-          } else if (goal.x === x && goal.y === y) {
+          } else if (currentMode === 'grad' && goal.x === x && goal.y === y) {
             cell.innerHTML = '<span class="black">/</span>';
-          } else if (isEnemy(x, y)) {
+          } else if (currentMode === 'classic' && goal.x === x && goal.y === y) {
+            cell.innerHTML = '<span class="black">/</span>';
+          } else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) {
+            cell.innerHTML = '<span class="black">/</span>';
+          } else if (currentMode === 'grad' && isStaticEnemy(x, y)) {
             cell.innerHTML = '<span class="black">,</span>';
-          } else if (isObstacle(x, y)) {
+          } else if (currentMode === 'grad' && isObstacle(x, y)) {
             cell.innerHTML = '<span class="black">-</span>';
-          } else if (isPowerup(x, y)) {
+          } else if (currentMode === 'grad' && isPowerup(x, y)) {
             cell.innerHTML = '<span class="black">*</span>';
           } else {
             cell.innerHTML = '&nbsp;';
@@ -353,9 +531,7 @@
       } while (
         (goal.x === player.x && goal.y === player.y) ||
         (goal.x === 0) ||
-        isObstacle(goal.x, goal.y) ||
-        isEnemy(goal.x, goal.y) ||
-        isPowerup(goal.x, goal.y)
+        (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y)))
       );
     }
 
@@ -363,20 +539,14 @@
       const float = document.createElement('div');
       float.className = 'float-text';
       float.textContent = text;
-
       const cellSize = 24;
       const offsetX = x * cellSize + cellSize / 2;
       const offsetY = y * cellSize + cellSize / 2;
-
       float.style.left = offsetX + 'px';
       float.style.top = offsetY + 'px';
-
       gameContainer.appendChild(float);
-
       setTimeout(() => {
-        if (float.parentNode) {
-          float.parentNode.removeChild(float);
-        }
+        if (float.parentNode) float.parentNode.removeChild(float);
       }, 1300);
     }
 
@@ -388,17 +558,38 @@
     function gameOver(msg = "Time is up!") {
       gameStarted = false;
       running = false;
-      uiDiv.classList.add('hide');
-      gameoverDiv.classList.remove('hide');
-      gameOverMsg.textContent = msg;
-      finalscore.textContent = score;
-      let highscore = localStorage.getItem('gradHighScore') || 0;
+      clearInterval(survivalEnemiesMoveInterval);
+      const highscoreKey = currentMode === 'grad' ? 'gradHighScore' : 
+                          currentMode === 'classic' ? 'classicHighScore' : 'survivalHighScore';
+      let highscore = localStorage.getItem(highscoreKey) || 0;
       if (score > highscore) {
-        localStorage.setItem('gradHighScore', score);
+        localStorage.setItem(highscoreKey, score);
         highscore = score;
       }
       highscoreSpan.textContent = highscore;
       highscoreTop.textContent = highscore;
+      gameOverMsg.textContent = msg;
+      finalscore.textContent = score;
+      uiDiv.classList.add('hide');
+      gameoverDiv.classList.remove('hide');
+    }
+
+    function victory() {
+      gameStarted = false;
+      running = false;
+      clearInterval(survivalEnemiesMoveInterval);
+      score = 100;
+      const highscoreKey = 'survivalHighScore';
+      let highscore = localStorage.getItem(highscoreKey) || 0;
+      if (score > highscore) {
+        localStorage.setItem(highscoreKey, score);
+        highscore = score;
+      }
+      victoryscore.textContent = score;
+      victoryhighscore.textContent = highscore;
+      highscoreTop.textContent = highscore;
+      uiDiv.classList.add('hide');
+      victoryDiv.classList.remove('hide');
     }
 
     function movePlayer(dx, dy) {
@@ -407,28 +598,35 @@
       let newX = (player.x + dx + width) % width;
       let newY = (player.y + dy + height) % height;
 
-      if (isObstacle(newX, newY)) {
-        return;
-      }
-      if (isEnemy(newX, newY)) {
-        gameOver("You bumped into an opponent (,)");
-        return;
-      }
-
-      if (isPowerup(newX, newY)) {
-        score += 5;
-        addTime(3);
-        showPlusTime(newX, newY, './ +3 sec +5 points');
-        const idx = powerups.findIndex(p => p.x === newX && p.y === newY);
-        if (idx !== -1) powerups.splice(idx, 1);
-        player.x = newX;
-        player.y = newY;
-        scoreSpan.textContent = score;
-        drawGrid();
+      
+      if (currentMode === 'survival' && isSurvivalEnemy(newX, newY)) {
+        gameOver("Enemy too close!");
         return;
       }
 
-      if (newX === goal.x && newY === goal.y && dx === 1) {
+      
+      if (currentMode === 'grad') {
+        if (isObstacle(newX, newY)) return;
+        if (isStaticEnemy(newX, newY)) {
+          gameOver("You bumped into an opponent (,)");
+          return;
+        }
+        if (isPowerup(newX, newY)) {
+          score += 5;
+          addTime(3);
+          showPlusTime(newX, newY, './ +3 sec +5 points');
+          const idx = powerups.findIndex(p => p.x === newX && p.y === newY);
+          if (idx !== -1) powerups.splice(idx, 1);
+          player.x = newX;
+          player.y = newY;
+          scoreSpan.textContent = score;
+          drawGrid();
+          return;
+        }
+      }
+
+      
+      if (currentMode !== 'survival' && newX === goal.x && newY === goal.y && dx === 1) {
         player.x = newX;
         player.y = newY;
         score++;
@@ -436,12 +634,12 @@
         addTime(2);
         showPlusTime(newX, newY, './ +2 sec');
         placeGoal();
-        generateObstaclesAndEnemiesAndPowerups();
+        if (currentMode === 'grad') generateFullMode();
+        drawGrid();
       } else if (!(newX === goal.x && newY === goal.y)) {
         player.x = newX;
         player.y = newY;
       }
-
       drawGrid();
     }
 
@@ -456,7 +654,11 @@
             timerSpan.textContent = 0;
             clearInterval(interval);
             running = false;
-            setTimeout(gameOver, 300);
+            if (currentMode === 'survival') {
+              setTimeout(victory, 300);
+            } else {
+              setTimeout(gameOver, 300);
+            }
           } else {
             timerSpan.textContent = time;
           }
@@ -464,7 +666,8 @@
       }, 1000);
     }
 
-    function startGame() {
+    function startGame(mode) {
+      currentMode = mode;
       player = {x: 15, y: 10};
       goal = {x: 0, y: 0};
       score = 0;
@@ -472,18 +675,39 @@
       running = true;
       gameStarted = true;
       paused = false;
+      
       scoreSpan.textContent = '0';
       timerSpan.textContent = initialTime;
-
-      placeGoal();
-      generateObstaclesAndEnemiesAndPowerups();
+      
+      if (mode === 'survival') {
+        generateSurvivalEnemies();
+        clearInterval(survivalEnemiesMoveInterval);
+        survivalEnemiesMoveInterval = setInterval(() => {
+          if (running && !paused) {
+            moveSurvivalEnemies();
+          }
+        }, 1000);
+      } else {
+        clearInterval(survivalEnemiesMoveInterval);
+        placeGoal();
+        if (mode === 'grad') {
+          generateFullMode();
+        } else {
+          generateClassicMode();
+        }
+      }
+      
       drawGrid();
-
       uiDiv.classList.remove('hide');
       welcomeDiv.classList.add('hide');
       gameoverDiv.classList.add('hide');
+      victoryDiv.classList.add('hide');
       pauseOverlay.style.display = 'none';
-      highscoreTop.textContent = localStorage.getItem('gradHighScore') || 0;
+      
+      const highscoreKey = mode === 'grad' ? 'gradHighScore' : 
+                          mode === 'classic' ? 'classicHighScore' : 'survivalHighScore';
+      highscoreTop.textContent = localStorage.getItem(highscoreKey) || 0;
+      
       startTimer();
     }
 
@@ -503,9 +727,14 @@
       if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) movePlayer(1, 0);
     });
 
-    startBtn.onclick = startGame;
-    restartBtn.onclick = startGame;
+    gradBtn.onclick = () => startGame('grad');
+    classicBtn.onclick = () => startGame('classic');
+    survivalBtn.onclick = () => startGame('survival');
+    restartBtn.onclick = () => startGame(currentMode);
+    restartBtnVictory.onclick = () => startGame(currentMode);
+    menuBtn.onclick = showMenu;
+    menuBtnGameover.onclick = showMenu;
+    menuBtnVictory.onclick = showMenu;
   </script>
 </body>
 </html>
-
