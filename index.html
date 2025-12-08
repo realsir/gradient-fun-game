@@ -47,18 +47,20 @@
       background: #fff;
       border-radius: 16px;
       box-shadow: 0 4px 22px #3333;
-      padding: 45px 44px 32px 44px;
+      padding: 30px 32px;
       text-align: center;
-      font-size: 22px;
+      font-size: 20px;
       color: #181818;
-      min-width: 300px;
+      min-width: 320px;
       max-width: 95vw;
+      max-height: 85vh;
+      overflow-y: auto;
     }
     .big-btn {
       display: inline-block;
-      margin-top: 18px;
-      padding: 14px 70px;
-      font-size: 24px;
+      margin: 8px 0;
+      padding: 12px 45px;
+      font-size: 20px;
       background: #222;
       color: #fafafa;
       border: none;
@@ -69,22 +71,34 @@
       transition: background 0.2s;
       font-family: monospace;
       font-weight: 700;
+      width: 100%;
+      max-width: 280px;
     }
     .big-btn:hover, .big-btn:focus {
       background: #111;
     }
-    .btn-row {
-      display: flex;
+    .mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 20px;
-      flex-wrap: wrap;
-      justify-content: center;
+      margin-top: 20px;
+    }
+    .mode-card {
+      background: rgba(255,255,255,0.7);
+      border-radius: 12px;
+      padding: 20px 15px;
+      border: 2px solid #e0e0e0;
+      transition: all 0.2s;
+    }
+    .mode-card:hover {
+      border-color: #0b8a00;
+      box-shadow: 0 4px 15px #0b8a0080;
     }
     .mode-desc {
-      margin-top: 10px;
       color: #555;
-      font-size: 18px;
-      line-height: 1.5;
-      max-width: 400px;
+      font-size: 15px;
+      line-height: 1.4;
+      margin: 0;
     }
     #ui { 
       z-index: 1;
@@ -206,33 +220,46 @@
         <div>Choose your game mode:</div>
       </div>
       
-      <div class="btn-row">
-        <div style="text-align: center;">
+      <div class="mode-grid">
+        <div class="mode-card">
           <button class="big-btn" id="gradBtn">./ GRAD MODE+</button>
           <div class="mode-desc">
-            You have a single goal – collect the combinations as quickly as you can!<br><br>
-            1. "–" these are now your advantages.<br>
-            2. "," and these are your opponents, who are best left alone<br>
-            3. "./" for each correctly completed combination, your current time increases by +2 sec.<br>
-            4. "*" bonuses give +5 points and +3 sec.<br>
-            5. "SPACE" for pause/unpause.
+            Single goal – collect combinations quickly!<br>
+            • "-" advantages<br>
+            • "," opponents (avoid)<br>
+            • "./" +2 sec per combo<br>
+            • "*" +5 points +3 sec<br>
+            • SPACE pause
           </div>
         </div>
         
-        <div style="text-align: center;">
+        <div class="mode-card">
           <button class="big-btn" id="classicBtn">./ GRAD CLASSIC</button>
           <div class="mode-desc">
-            Only you (.) and the opponent (/) playing the classic way.<br><br>
-            1. "SPACE" for pause/unpause.
+            You (.) vs opponent (/) classic style.<br>
+            • "./" activation only from right<br>
+            • SPACE pause/unpause
           </div>
         </div>
         
-        <div style="text-align: center;">
+        <div class="mode-card">
+          <button class="big-btn" id="mazeBtn">./ GRAD MAZE</button>
+          <div class="mode-desc">
+            Navigate maze corridors to reach (/).<br>
+            • "#" walls block movement<br>
+            • Reach goal ANY side: +20 sec, new maze!<br>
+            • 60 sec start time<br>
+            • SPACE pause
+          </div>
+        </div>
+
+        <div class="mode-card">
           <button class="big-btn" id="survivalBtn">./ GRAD SURVIVAL</button>
           <div class="mode-desc">
-            Survive 30 seconds against 15 moving enemies (/).<br><br>
-            1. Enemies chase you every second. Game Over if ANY enemy gets adjacent!<br>
-            2. "SPACE" for pause/unpause.
+            Survive 30 sec vs 15 enemies (/).<br>
+            • Enemies chase every second<br>
+            • Game Over if adjacent!<br>
+            • SPACE pause
           </div>
         </div>
       </div>
@@ -245,9 +272,9 @@
       Your score: <span id="finalscore"></span><br>
       High score: <span id="highscore"></span>
       <br />
-      <div class="btn-row">
-        <button class="big-btn" id="restartBtn">./ Restart</button>
-        <button class="big-btn" id="menuBtnGameover">./ Menu</button>
+      <div style="display:flex;gap:15px;justify-content:center;margin-top:20px;">
+        <button class="big-btn" id="restartBtn" style="width:auto;">./ Restart</button>
+        <button class="big-btn" id="menuBtnGameover" style="width:auto;">./ Menu</button>
       </div>
     </div>
   </div>
@@ -258,9 +285,9 @@
       Survival time: <span id="victoryscore"></span><br>
       Best survival: <span id="victoryhighscore"></span>
       <br />
-      <div class="btn-row">
-        <button class="big-btn" id="restartBtnVictory">./ Restart</button>
-        <button class="big-btn" id="menuBtnVictory">./ Menu</button>
+      <div style="display:flex;gap:15px;justify-content:center;margin-top:20px;">
+        <button class="big-btn" id="restartBtnVictory" style="width:auto;">./ Restart</button>
+        <button class="big-btn" id="menuBtnVictory" style="width:auto;">./ Menu</button>
       </div>
     </div>
   </div>
@@ -271,7 +298,7 @@
     <div class="ui-top-row">
       <button id="menuBtn">./ Menu</button>
       <div id="stats">
-        Score: <span id="score">0</span> | Time: <span id="timer">30</span> sec | High score: <span id="highscoreTop">0</span>
+        Score: <span id="score">0</span> | Time: <span id="timer">60</span> sec | High score: <span id="highscoreTop">0</span>
       </div>
     </div>
     <div id="gameContainer">
@@ -293,7 +320,7 @@
     window.addEventListener('resize', fillBgText);
     fillBgText();
 
-    const width = 30, height = 20, initialTime = 30;
+    const width = 30, height = 20;
     let player, goal, score, time, interval, running, gameStarted = false, paused = false, currentMode = '';
     let enemies = [], survivalEnemiesMoveInterval;
 
@@ -320,8 +347,14 @@
     const restartBtn = document.getElementById('restartBtn');
     const restartBtnVictory = document.getElementById('restartBtnVictory');
     const gameOverMsg = document.getElementById('gameOverMsg');
+    const mazeBtn = document.getElementById('mazeBtn');
 
     let obstacles = [], powerups = [], staticEnemies = [];
+    let mazeGrid = []; // 0 - стена, 1 - проход
+
+    function getInitialTime(mode) {
+      return mode === 'maze' ? 60 : 30;
+    }
 
     function showMenu() {
       gameStarted = false;
@@ -357,15 +390,12 @@
       return (x === player.x && y === player.y) || isSurvivalEnemy(x, y);
     }
 
-    
     function isEnemyAdjacentToPlayer() {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           if (dx === 0 && dy === 0) continue; 
-          
           let checkX = (player.x + dx + width) % width;
           let checkY = (player.y + dy + height) % height;
-          
           if (isSurvivalEnemy(checkX, checkY)) {
             return true;
           }
@@ -438,7 +468,6 @@
     }
 
     function moveSurvivalEnemies() {
-      
       if (isEnemyAdjacentToPlayer()) {
         gameOver("Enemy too close!");
         return;
@@ -473,7 +502,6 @@
         movedEnemies.push({x: newX, y: newY});
       });
       
-      
       if (isEnemyAdjacentToPlayer()) {
         gameOver("Enemy too close!");
       } else {
@@ -496,35 +524,117 @@
       return false;
     }
 
+    function generateMaze() {
+      mazeGrid = [];
+      for (let y = 0; y < height; y++) {
+        mazeGrid[y] = [];
+        for (let x = 0; x < width; x++) {
+          mazeGrid[y][x] = 0;
+        }
+      }
+
+      function inBounds(x, y) {
+        return x > 0 && x < width - 1 && y > 0 && y < height - 1;
+      }
+
+      let stack = [];
+      let startX = 1;
+      let startY = 1;
+      mazeGrid[startY][startX] = 1;
+      stack.push({x: startX, y: startY});
+
+      const dirs = [
+        {dx: 0, dy: -2},
+        {dx: 2, dy: 0},
+        {dx: 0, dy: 2},
+        {dx: -2, dy: 0}
+      ];
+
+      while (stack.length > 0) {
+        let current = stack[stack.length - 1];
+        let neighbors = [];
+
+        for (let i = 0; i < dirs.length; i++) {
+          let nx = current.x + dirs[i].dx;
+          let ny = current.y + dirs[i].dy;
+          if (inBounds(nx, ny) && mazeGrid[ny][nx] === 0) {
+            neighbors.push({x: nx, y: ny, dir: dirs[i]});
+          }
+        }
+
+        if (neighbors.length === 0) {
+          stack.pop();
+        } else {
+          let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+          let wx = current.x + next.dir.dx / 2;
+          let wy = current.y + next.dir.dy / 2;
+          mazeGrid[wy][wx] = 1;
+          mazeGrid[next.y][next.x] = 1;
+          stack.push({x: next.x, y: next.y});
+        }
+      }
+
+      mazeGrid[player.y][player.x] = 1;
+
+      let bestDist = 0;
+      let bestGoal = {x: width - 2, y: height - 2};
+      
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          if (mazeGrid[y][x] === 1) {
+            let dist = Math.abs(x - player.x) + Math.abs(y - player.y);
+            if (dist > bestDist) {
+              bestDist = dist;
+              bestGoal = {x, y};
+            }
+          }
+        }
+      }
+      goal.x = bestGoal.x;
+      goal.y = bestGoal.y;
+    }
+
     function drawGrid() {
       gameDiv.innerHTML = '';
       for(let y = 0; y < height; y++) {
         for(let x = 0; x < width; x++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
+
           if (player.x === x && player.y === y) {
             cell.innerHTML = '<span class="black">.</span>';
-          } else if (currentMode === 'grad' && goal.x === x && goal.y === y) {
+          }
+          else if ((currentMode === 'grad' || currentMode === 'classic' || currentMode === 'maze') && goal.x === x && goal.y === y) {
             cell.innerHTML = '<span class="black">/</span>';
-          } else if (currentMode === 'classic' && goal.x === x && goal.y === y) {
+          }
+          else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) {
             cell.innerHTML = '<span class="black">/</span>';
-          } else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) {
-            cell.innerHTML = '<span class="black">/</span>';
-          } else if (currentMode === 'grad' && isStaticEnemy(x, y)) {
+          }
+          else if (currentMode === 'grad' && isStaticEnemy(x, y)) {
             cell.innerHTML = '<span class="black">,</span>';
           } else if (currentMode === 'grad' && isObstacle(x, y)) {
             cell.innerHTML = '<span class="black">-</span>';
           } else if (currentMode === 'grad' && isPowerup(x, y)) {
             cell.innerHTML = '<span class="black">*</span>';
-          } else {
+          }
+          else if (currentMode === 'maze') {
+            if (mazeGrid[y] && mazeGrid[y][x] === 0) {
+              cell.innerHTML = '<span class="black">#</span>';
+            } else {
+              cell.innerHTML = '&nbsp;';
+            }
+          }
+          else {
             cell.innerHTML = '&nbsp;';
           }
+
           gameDiv.appendChild(cell);
         }
       }
     }
 
     function placeGoal() {
+      if (currentMode === 'maze') return;
       do {
         goal.x = Math.floor(Math.random() * width);
         goal.y = Math.floor(Math.random() * height);
@@ -559,8 +669,11 @@
       gameStarted = false;
       running = false;
       clearInterval(survivalEnemiesMoveInterval);
-      const highscoreKey = currentMode === 'grad' ? 'gradHighScore' : 
-                          currentMode === 'classic' ? 'classicHighScore' : 'survivalHighScore';
+      const highscoreKey =
+        currentMode === 'grad' ? 'gradHighScore' : 
+        currentMode === 'classic' ? 'classicHighScore' :
+        currentMode === 'maze' ? 'mazeHighScore' :
+        'survivalHighScore';
       let highscore = localStorage.getItem(highscoreKey) || 0;
       if (score > highscore) {
         localStorage.setItem(highscoreKey, score);
@@ -595,16 +708,26 @@
     function movePlayer(dx, dy) {
       if (!running || !gameStarted || paused) return;
 
-      let newX = (player.x + dx + width) % width;
-      let newY = (player.y + dy + height) % height;
+      let newX = player.x + dx;
+      let newY = player.y + dy;
 
-      
+      if (currentMode === 'maze') {
+        if (newX < 0 || newX >= width || newY < 0 || newY >= height) {
+          return;
+        }
+        if (mazeGrid[newY][newX] === 0) {
+          return;
+        }
+      } else {
+        newX = (newX + width) % width;
+        newY = (newY + height) % height;
+      }
+
       if (currentMode === 'survival' && isSurvivalEnemy(newX, newY)) {
         gameOver("Enemy too close!");
         return;
       }
 
-      
       if (currentMode === 'grad') {
         if (isObstacle(newX, newY)) return;
         if (isStaticEnemy(newX, newY)) {
@@ -625,21 +748,33 @@
         }
       }
 
-      
-      if (currentMode !== 'survival' && newX === goal.x && newY === goal.y && dx === 1) {
+      const isMazeMode = currentMode === 'maze';
+      const goalActivationCondition = isMazeMode ? 
+        (newX === goal.x && newY === goal.y) :  
+        (newX === goal.x && newY === goal.y && dx === 1);  
+
+      if (currentMode !== 'survival' && goalActivationCondition) {
         player.x = newX;
         player.y = newY;
         score++;
         scoreSpan.textContent = score;
-        addTime(2);
-        showPlusTime(newX, newY, './ +2 sec');
-        placeGoal();
-        if (currentMode === 'grad') generateFullMode();
+        
+        if (currentMode === 'maze') {
+          addTime(20);
+          showPlusTime(newX, newY, './ +20 sec');
+          generateMaze(); 
+        } else {
+          addTime(2);
+          showPlusTime(newX, newY, './ +2 sec');
+          placeGoal();
+          if (currentMode === 'grad') generateFullMode();
+        }
         drawGrid();
-      } else if (!(newX === goal.x && newY === goal.y)) {
-        player.x = newX;
-        player.y = newY;
+        return;
       }
+
+      player.x = newX;
+      player.y = newY;
       drawGrid();
     }
 
@@ -668,18 +803,19 @@
 
     function startGame(mode) {
       currentMode = mode;
-      player = {x: 15, y: 10};
+      player = {x: 1, y: 1};
       goal = {x: 0, y: 0};
       score = 0;
-      time = initialTime;
+      time = getInitialTime(mode);
       running = true;
       gameStarted = true;
       paused = false;
       
       scoreSpan.textContent = '0';
-      timerSpan.textContent = initialTime;
+      timerSpan.textContent = time;
       
       if (mode === 'survival') {
+        player = {x: 15, y: 10};
         generateSurvivalEnemies();
         clearInterval(survivalEnemiesMoveInterval);
         survivalEnemiesMoveInterval = setInterval(() => {
@@ -687,7 +823,13 @@
             moveSurvivalEnemies();
           }
         }, 1000);
+      } else if (mode === 'maze') {
+        obstacles = [];
+        staticEnemies = [];
+        powerups = [];
+        generateMaze();
       } else {
+        player = {x: 15, y: 10};
         clearInterval(survivalEnemiesMoveInterval);
         placeGoal();
         if (mode === 'grad') {
@@ -704,8 +846,11 @@
       victoryDiv.classList.add('hide');
       pauseOverlay.style.display = 'none';
       
-      const highscoreKey = mode === 'grad' ? 'gradHighScore' : 
-                          mode === 'classic' ? 'classicHighScore' : 'survivalHighScore';
+      const highscoreKey =
+        mode === 'grad' ? 'gradHighScore' : 
+        mode === 'classic' ? 'classicHighScore' :
+        mode === 'maze' ? 'mazeHighScore' :
+        'survivalHighScore';
       highscoreTop.textContent = localStorage.getItem(highscoreKey) || 0;
       
       startTimer();
@@ -729,6 +874,7 @@
 
     gradBtn.onclick = () => startGame('grad');
     classicBtn.onclick = () => startGame('classic');
+    mazeBtn.onclick = () => startGame('maze');
     survivalBtn.onclick = () => startGame('survival');
     restartBtn.onclick = () => startGame(currentMode);
     restartBtnVictory.onclick = () => startGame(currentMode);
@@ -738,3 +884,4 @@
   </script>
 </body>
 </html>
+
