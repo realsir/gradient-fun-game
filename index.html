@@ -4,17 +4,13 @@
   <meta charset="UTF-8" />
   <title>GradGame</title>
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-    }
+    html, body { height: 100%; margin: 0; padding: 0; }
     body {
       font-family: monospace;
       min-height: 100vh;
       background: #ededed;
       overflow: hidden;
-      position: relative; 
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -74,9 +70,7 @@
       width: 100%;
       max-width: 280px;
     }
-    .big-btn:hover, .big-btn:focus {
-      background: #111;
-    }
+    .big-btn:hover, .big-btn:focus { background: #111; }
     .mode-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -100,7 +94,7 @@
       line-height: 1.4;
       margin: 0;
     }
-    #ui { 
+    #ui {
       z-index: 1;
       position: relative;
       align-items: center;
@@ -135,16 +129,8 @@
       transition: all 0.2s;
       white-space: nowrap;
     }
-    #menuBtn:hover {
-      background: #fff;
-      border-color: #bbb;
-    }
-    #gameContainer {
-      position: relative;
-      width: 720px;
-      height: 480px;
-      margin-bottom: 4px;
-    }
+    #menuBtn:hover { background: #fff; border-color: #bbb; }
+    #gameContainer { position: relative; width: 720px; height: 480px; margin-bottom: 4px; }
     #game {
       display: grid;
       grid-template-columns: repeat(30, 24px);
@@ -168,6 +154,8 @@
       z-index: 2;
     }
     .black { color: #111 !important; font-weight: bold; }
+    .warn { color: #b88600 !important; font-weight: 900; } 
+    .boom { color: #b80000 !important; font-weight: 900; } 
     .hide { display: none !important; }
 
     .float-text {
@@ -180,17 +168,9 @@
       animation: floatUp 1.2s ease-out forwards;
     }
     @keyframes floatUp {
-      0% {
-        opacity: 1;
-        transform: translate(-50%, 0) scale(1);
-      }
-      50% {
-        transform: translate(-50%, -20px) scale(1.2);
-      }
-      100% {
-        opacity: 0;
-        transform: translate(-50%, -50px) scale(0.8);
-      }
+      0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      50% { transform: translate(-50%, -20px) scale(1.2); }
+      100% { opacity: 0; transform: translate(-50%, -50px) scale(0.8); }
     }
     #pauseOverlay {
       position: fixed;
@@ -211,37 +191,35 @@
 </head>
 <body>
   <div id="bgtext"></div>
-  
+
   <div id="welcome" class="overlay">
     <div class="overlay-block">
       <div style="font-size:25px;font-weight:700;margin-bottom:17px;">./ Welcome to "GradGame"</div>
-      
-      <div style="margin-bottom: 25px;">
-        <div>Choose your game mode:</div>
-      </div>
-      
+      <div style="margin-bottom: 25px;"><div>Choose your game mode:</div></div>
+
       <div class="mode-grid">
         <div class="mode-card">
           <button class="big-btn" id="gradBtn">./ GRAD MODE+</button>
           <div class="mode-desc">
             Single goal – collect combinations quickly!<br>
-            • "-" advantages<br>
+            • "-" obstacles<br>
             • "," opponents (avoid)<br>
             • "./" +2 sec per combo<br>
             • "*" +5 points +3 sec<br>
             • SPACE pause
           </div>
         </div>
-        
+
         <div class="mode-card">
           <button class="big-btn" id="classicBtn">./ GRAD CLASSIC</button>
           <div class="mode-desc">
-            You (.) vs opponent (/) classic style.<br>
-            • "./" activation only from right<br>
+            You (.) vs goal (/).<br>
+            • Collect only as "./" (from right)<br>
+            • You cannot pass through "/"<br>
             • SPACE pause/unpause
           </div>
         </div>
-        
+
         <div class="mode-card">
           <button class="big-btn" id="mazeBtn">./ GRAD MAZE</button>
           <div class="mode-desc">
@@ -262,10 +240,21 @@
             • SPACE pause
           </div>
         </div>
+
+        <div class="mode-card">
+          <button class="big-btn" id="dangerBtn">./ GRAD DANGER ZONE</button>
+          <div class="mode-desc">
+            Telegraph blasts (anti-camping).<br>
+            • Every 2 sec spawns 2–4 "x"<br>
+            • After ~1.2 sec -> "X" blast (fatal)<br>
+            • Blast lasts ~0.7 sec<br>
+            • SPACE pause
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  
+
   <div id="gameover" class="overlay hide">
     <div class="overlay-block" id="overmsg">
       <div style="font-size:23px;margin-bottom:14px;" id="gameOverMsg">Time is up!</div>
@@ -278,7 +267,7 @@
       </div>
     </div>
   </div>
-  
+
   <div id="victory" class="overlay hide">
     <div class="overlay-block" id="victorymsg">
       <div style="font-size:23px;margin-bottom:14px;color:#0b8a00;">./ YOU WIN!</div>
@@ -291,9 +280,9 @@
       </div>
     </div>
   </div>
-  
+
   <div id="pauseOverlay">./ PAUSED</div>
-  
+
   <div id="ui" class="hide">
     <div class="ui-top-row">
       <button id="menuBtn">./ Menu</button>
@@ -301,9 +290,7 @@
         Score: <span id="score">0</span> | Time: <span id="timer">60</span> sec | High score: <span id="highscoreTop">0</span>
       </div>
     </div>
-    <div id="gameContainer">
-      <div id="game"></div>
-    </div>
+    <div id="gameContainer"><div id="game"></div></div>
   </div>
 
   <script>
@@ -313,16 +300,23 @@
       let str = '';
       let line = '';
       let pattern = './ GradGame ';
-      for(let i = 0; i < Math.ceil(cols * 1.5); i++) line += pattern;
-      for(let i = 0; i < rows; i++) str += line.substr(0, cols*9) + '\n'; 
+      for (let i = 0; i < Math.ceil(cols * 1.5); i++) line += pattern;
+      for (let i = 0; i < rows; i++) str += line.substr(0, cols * 9) + '\n';
       document.getElementById("bgtext").textContent = str;
     }
     window.addEventListener('resize', fillBgText);
     fillBgText();
 
     const width = 30, height = 20;
+
     let player, goal, score, time, interval, running, gameStarted = false, paused = false, currentMode = '';
     let enemies = [], survivalEnemiesMoveInterval;
+
+    let obstacles = [], powerups = [], staticEnemies = [];
+    let mazeGrid = []; 
+
+    let hazards = []; 
+    let hazardSpawnInterval, hazardTickInterval;
 
     const gameContainer = document.getElementById('gameContainer');
     const gameDiv = document.getElementById('game');
@@ -339,66 +333,93 @@
     const victoryhighscore = document.getElementById('victoryhighscore');
     const pauseOverlay = document.getElementById('pauseOverlay');
     const menuBtn = document.getElementById('menuBtn');
+
     const menuBtnGameover = document.getElementById('menuBtnGameover');
     const menuBtnVictory = document.getElementById('menuBtnVictory');
+
     const gradBtn = document.getElementById('gradBtn');
     const classicBtn = document.getElementById('classicBtn');
+    const mazeBtn = document.getElementById('mazeBtn');
     const survivalBtn = document.getElementById('survivalBtn');
+    const dangerBtn = document.getElementById('dangerBtn');
+
     const restartBtn = document.getElementById('restartBtn');
     const restartBtnVictory = document.getElementById('restartBtnVictory');
     const gameOverMsg = document.getElementById('gameOverMsg');
-    const mazeBtn = document.getElementById('mazeBtn');
-
-    let obstacles = [], powerups = [], staticEnemies = [];
-    let mazeGrid = []; // 0 - стена, 1 - проход
 
     function getInitialTime(mode) {
-      return mode === 'maze' ? 60 : 30;
+      if (mode === 'maze') return 60;
+      return 30;
+    }
+
+    function clearAllIntervals() {
+      clearInterval(interval);
+      clearInterval(survivalEnemiesMoveInterval);
+      clearInterval(hazardSpawnInterval);
+      clearInterval(hazardTickInterval);
     }
 
     function showMenu() {
       gameStarted = false;
       running = false;
       paused = false;
-      clearInterval(interval);
-      clearInterval(survivalEnemiesMoveInterval);
+
+      clearAllIntervals();
+
       uiDiv.classList.add('hide');
       welcomeDiv.classList.remove('hide');
       gameoverDiv.classList.add('hide');
       victoryDiv.classList.add('hide');
       pauseOverlay.style.display = 'none';
       gameDiv.innerHTML = '';
+
+      hazards = [];
+      enemies = [];
+      obstacles = [];
+      staticEnemies = [];
+      powerups = [];
+      mazeGrid = [];
     }
 
-    function isObstacle(x, y) {
-      return obstacles.some(o => o.x === x && o.y === y);
+    function showPlusTime(x, y, text) {
+      const float = document.createElement('div');
+      float.className = 'float-text';
+      float.textContent = text;
+      const cellSize = 24;
+      const offsetX = x * cellSize + cellSize / 2;
+      const offsetY = y * cellSize + cellSize / 2;
+      float.style.left = offsetX + 'px';
+      float.style.top = offsetY + 'px';
+      gameContainer.appendChild(float);
+      setTimeout(() => { if (float.parentNode) float.parentNode.removeChild(float); }, 1300);
     }
 
-    function isStaticEnemy(x, y) {
-      return staticEnemies.some(e => e.x === x && e.y === y);
+    function addTime(seconds) {
+      time += seconds;
+      timerSpan.textContent = time;
     }
 
-    function isPowerup(x, y) {
-      return powerups.some(p => p.x === x && p.y === y);
-    }
+    function isObstacle(x, y) { return obstacles.some(o => o.x === x && o.y === y); }
+    function isStaticEnemy(x, y) { return staticEnemies.some(e => e.x === x && e.y === y); }
+    function isPowerup(x, y) { return powerups.some(p => p.x === x && p.y === y); }
+    function isSurvivalEnemy(x, y) { return enemies.some(e => e.x === x && e.y === y); }
 
-    function isSurvivalEnemy(x, y) {
-      return enemies.some(e => e.x === x && e.y === y);
-    }
-
-    function isPositionOccupied(x, y) {
-      return (x === player.x && y === player.y) || isSurvivalEnemy(x, y);
+    function isNearGoal(x, y) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (goal.x + dx === x && goal.y + dy === y) return true;
+        }
+      }
+      return false;
     }
 
     function isEnemyAdjacentToPlayer() {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
-          if (dx === 0 && dy === 0) continue; 
+          if (dx === 0 && dy === 0) continue;
           let checkX = (player.x + dx + width) % width;
           let checkY = (player.y + dy + height) % height;
-          if (isSurvivalEnemy(checkX, checkY)) {
-            return true;
-          }
+          if (isSurvivalEnemy(checkX, checkY)) return true;
         }
       }
       return false;
@@ -411,16 +432,59 @@
         tries++;
         const ex = Math.floor(Math.random() * width);
         const ey = Math.floor(Math.random() * height);
-        if (isPositionOccupied(ex, ey) || enemies.some(e => e.x === ex && e.y === ey)) continue;
-        enemies.push({x: ex, y: ey});
+        if ((ex === player.x && ey === player.y) || enemies.some(e => e.x === ex && e.y === ey)) continue;
+        enemies.push({ x: ex, y: ey });
       }
+    }
+
+    function moveSurvivalEnemies() {
+      if (isEnemyAdjacentToPlayer()) {
+        gameOver("Enemy too close!");
+        return;
+      }
+
+      let movedEnemies = [];
+      enemies.forEach(enemy => {
+        let bestDx = 0, bestDy = 0, bestDist = Infinity;
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            if (dx === 0 && dy === 0) continue;
+            let nx = (enemy.x + dx + width) % width;
+            let ny = (enemy.y + dy + height) % height;
+
+            let occupied =
+              (nx === player.x && ny === player.y) ||
+              enemies.some(e => e !== enemy && e.x === nx && e.y === ny) ||
+              movedEnemies.some(m => m.x === nx && m.y === ny);
+
+            let dist = Math.abs(nx - player.x) + Math.abs(ny - player.y);
+            if (!occupied && dist < bestDist) {
+              bestDist = dist;
+              bestDx = dx;
+              bestDy = dy;
+            }
+          }
+        }
+        enemy.x = (enemy.x + bestDx + width) % width;
+        enemy.y = (enemy.y + bestDy + height) % height;
+        movedEnemies.push({ x: enemy.x, y: enemy.y });
+      });
+
+      if (isEnemyAdjacentToPlayer()) gameOver("Enemy too close!");
+      else drawGrid();
+    }
+
+    function generateClassicMode() {
+      obstacles = [];
+      staticEnemies = [];
+      powerups = [];
     }
 
     function generateFullMode() {
       obstacles = [];
       staticEnemies = [];
       powerups = [];
-      
+
       const MIN_OBS = 20, MAX_OBS = 30;
       const MIN_ENEMIES = 3, MAX_ENEMIES = 5;
 
@@ -431,7 +495,7 @@
         const ox = Math.floor(Math.random() * width);
         const oy = Math.floor(Math.random() * height);
         if (isNearGoal(ox, oy) || (ox === player.x && oy === player.y) || (ox === goal.x && oy === goal.y)) continue;
-        obstacles.push({x: ox, y: oy});
+        obstacles.push({ x: ox, y: oy });
       }
 
       const enemyCount = Math.floor(Math.random() * (MAX_ENEMIES - MIN_ENEMIES + 1)) + MIN_ENEMIES;
@@ -447,7 +511,7 @@
           isNearGoal(ex, ey) ||
           staticEnemies.some(e => e.x === ex && e.y === ey)
         ) continue;
-        staticEnemies.push({x: ex, y: ey});
+        staticEnemies.push({ x: ex, y: ey });
       }
 
       const powerupCount = 3;
@@ -457,97 +521,35 @@
         const px = Math.floor(Math.random() * width);
         const py = Math.floor(Math.random() * height);
         if (
-          isNearGoal(px, py) || 
-          (px === player.x && py === player.y) || 
+          isNearGoal(px, py) ||
+          (px === player.x && py === player.y) ||
           (px === goal.x && py === goal.y) ||
           isObstacle(px, py) ||
           isStaticEnemy(px, py)
         ) continue;
-        powerups.push({x: px, y: py});
+        powerups.push({ x: px, y: py });
       }
-    }
-
-    function moveSurvivalEnemies() {
-      if (isEnemyAdjacentToPlayer()) {
-        gameOver("Enemy too close!");
-        return;
-      }
-
-      let movedEnemies = [];
-      enemies.forEach(enemy => {
-        let bestDx = 0, bestDy = 0, bestDist = Infinity;
-        
-        for (let dx = -1; dx <= 1; dx++) {
-          for (let dy = -1; dy <= 1; dy++) {
-            if (dx === 0 && dy === 0) continue;
-            let nx = (enemy.x + dx + width) % width;
-            let ny = (enemy.y + dy + height) % height;
-            
-            let occupied = isPositionOccupied(nx, ny) || 
-                          movedEnemies.some(m => m.x === nx && m.y === ny);
-            
-            let dist = Math.abs(nx - player.x) + Math.abs(ny - player.y);
-            if (!occupied && dist < bestDist) {
-              bestDist = dist;
-              bestDx = dx;
-              bestDy = dy;
-            }
-          }
-        }
-        
-        let newX = (enemy.x + bestDx + width) % width;
-        let newY = (enemy.y + bestDy + height) % height;
-        enemy.x = newX;
-        enemy.y = newY;
-        movedEnemies.push({x: newX, y: newY});
-      });
-      
-      if (isEnemyAdjacentToPlayer()) {
-        gameOver("Enemy too close!");
-      } else {
-        drawGrid();
-      }
-    }
-
-    function generateClassicMode() {
-      obstacles = [];
-      staticEnemies = [];
-      powerups = [];
-    }
-
-    function isNearGoal(x, y) {
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          if (goal.x + dx === x && goal.y + dy === y) return true;
-        }
-      }
-      return false;
     }
 
     function generateMaze() {
       mazeGrid = [];
       for (let y = 0; y < height; y++) {
         mazeGrid[y] = [];
-        for (let x = 0; x < width; x++) {
-          mazeGrid[y][x] = 0;
-        }
+        for (let x = 0; x < width; x++) mazeGrid[y][x] = 0;
       }
 
-      function inBounds(x, y) {
-        return x > 0 && x < width - 1 && y > 0 && y < height - 1;
-      }
+      function inBounds(x, y) { return x > 0 && x < width - 1 && y > 0 && y < height - 1; }
 
       let stack = [];
-      let startX = 1;
-      let startY = 1;
+      let startX = 1, startY = 1;
       mazeGrid[startY][startX] = 1;
-      stack.push({x: startX, y: startY});
+      stack.push({ x: startX, y: startY });
 
       const dirs = [
-        {dx: 0, dy: -2},
-        {dx: 2, dy: 0},
-        {dx: 0, dy: 2},
-        {dx: -2, dy: 0}
+        { dx: 0, dy: -2 },
+        { dx: 2, dy: 0 },
+        { dx: 0, dy: 2 },
+        { dx: -2, dy: 0 }
       ];
 
       while (stack.length > 0) {
@@ -557,9 +559,7 @@
         for (let i = 0; i < dirs.length; i++) {
           let nx = current.x + dirs[i].dx;
           let ny = current.y + dirs[i].dy;
-          if (inBounds(nx, ny) && mazeGrid[ny][nx] === 0) {
-            neighbors.push({x: nx, y: ny, dir: dirs[i]});
-          }
+          if (inBounds(nx, ny) && mazeGrid[ny][nx] === 0) neighbors.push({ x: nx, y: ny, dir: dirs[i] });
         }
 
         if (neighbors.length === 0) {
@@ -570,23 +570,19 @@
           let wy = current.y + next.dir.dy / 2;
           mazeGrid[wy][wx] = 1;
           mazeGrid[next.y][next.x] = 1;
-          stack.push({x: next.x, y: next.y});
+          stack.push({ x: next.x, y: next.y });
         }
       }
 
       mazeGrid[player.y][player.x] = 1;
 
       let bestDist = 0;
-      let bestGoal = {x: width - 2, y: height - 2};
-      
+      let bestGoal = { x: width - 2, y: height - 2 };
       for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
           if (mazeGrid[y][x] === 1) {
             let dist = Math.abs(x - player.x) + Math.abs(y - player.y);
-            if (dist > bestDist) {
-              bestDist = dist;
-              bestGoal = {x, y};
-            }
+            if (dist > bestDist) { bestDist = dist; bestGoal = { x, y }; }
           }
         }
       }
@@ -594,43 +590,71 @@
       goal.y = bestGoal.y;
     }
 
-    function drawGrid() {
-      gameDiv.innerHTML = '';
-      for(let y = 0; y < height; y++) {
-        for(let x = 0; x < width; x++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
+    const HAZARD_SPAWN_EVERY_MS = 2000;
+    const HAZARD_WARN_MS = 1200;
+    const HAZARD_BOOM_MS = 700;
+    const HAZARD_TICK_MS = 100;
 
-          if (player.x === x && player.y === y) {
-            cell.innerHTML = '<span class="black">.</span>';
-          }
-          else if ((currentMode === 'grad' || currentMode === 'classic' || currentMode === 'maze') && goal.x === x && goal.y === y) {
-            cell.innerHTML = '<span class="black">/</span>';
-          }
-          else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) {
-            cell.innerHTML = '<span class="black">/</span>';
-          }
-          else if (currentMode === 'grad' && isStaticEnemy(x, y)) {
-            cell.innerHTML = '<span class="black">,</span>';
-          } else if (currentMode === 'grad' && isObstacle(x, y)) {
-            cell.innerHTML = '<span class="black">-</span>';
-          } else if (currentMode === 'grad' && isPowerup(x, y)) {
-            cell.innerHTML = '<span class="black">*</span>';
-          }
-          else if (currentMode === 'maze') {
-            if (mazeGrid[y] && mazeGrid[y][x] === 0) {
-              cell.innerHTML = '<span class="black">#</span>';
-            } else {
-              cell.innerHTML = '&nbsp;';
-            }
-          }
-          else {
-            cell.innerHTML = '&nbsp;';
-          }
+    function getHazardAt(x, y) {
+      return hazards.find(h => h.x === x && h.y === y) || null;
+    }
+    function isHazardAny(x, y) { return !!getHazardAt(x, y); }
+    function isHazardBoom(x, y) {
+      const h = getHazardAt(x, y);
+      return !!h && h.state === 'boom';
+    }
+    function cleanupHazards() {
+      hazards = hazards.filter(h => h.t < (HAZARD_WARN_MS + HAZARD_BOOM_MS));
+    }
 
-          gameDiv.appendChild(cell);
-        }
+    function spawnHazardMarkers() {
+      if (!running || !gameStarted || paused) return;
+
+      const count = Math.floor(Math.random() * 130) + 120; 
+      let placed = 0;
+      let tries = 0;
+
+      while (placed < count && tries < 3000) {
+        tries++;
+        if (hazards.length >= 60) break;
+
+        const x = Math.floor(Math.random() * width);
+        const y = Math.floor(Math.random() * height);
+
+        if (x === player.x && y === player.y) continue;
+        if (x === goal.x && y === goal.y) continue;
+        if (isHazardAny(x, y)) continue;
+
+        hazards.push({ x, y, state: 'warn', t: 0 });
+        placed++;
       }
+
+      drawGrid();
+    }
+
+    function tickHazards() {
+      if (!running || !gameStarted || paused) return;
+
+      hazards.forEach(h => {
+        h.t += HAZARD_TICK_MS;
+        if (h.state === 'warn' && h.t >= HAZARD_WARN_MS) h.state = 'boom';
+      });
+
+      if (currentMode === 'danger' && isHazardBoom(player.x, player.y)) {
+        gameOver("You got blasted!");
+        return;
+      }
+
+      cleanupHazards();
+      drawGrid();
+    }
+
+    function startDangerSystem() {
+      hazards = [];
+      clearInterval(hazardSpawnInterval);
+      clearInterval(hazardTickInterval);
+      hazardSpawnInterval = setInterval(spawnHazardMarkers, HAZARD_SPAWN_EVERY_MS);
+      hazardTickInterval = setInterval(tickHazards, HAZARD_TICK_MS);
     }
 
     function placeGoal() {
@@ -641,56 +665,110 @@
       } while (
         (goal.x === player.x && goal.y === player.y) ||
         (goal.x === 0) ||
-        (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y)))
+        (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y))) ||
+        (currentMode === 'danger' && isHazardAny(goal.x, goal.y))
       );
     }
 
-    function showPlusTime(x, y, text) {
-      const float = document.createElement('div');
-      float.className = 'float-text';
-      float.textContent = text;
-      const cellSize = 24;
-      const offsetX = x * cellSize + cellSize / 2;
-      const offsetY = y * cellSize + cellSize / 2;
-      float.style.left = offsetX + 'px';
-      float.style.top = offsetY + 'px';
-      gameContainer.appendChild(float);
-      setTimeout(() => {
-        if (float.parentNode) float.parentNode.removeChild(float);
-      }, 1300);
+    function drawGrid() {
+      gameDiv.innerHTML = '';
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+
+          const hz = getHazardAt(x, y);
+
+          if (player.x === x && player.y === y) {
+            cell.innerHTML = '<span class="black">.</span>';
+          }
+          else if ((currentMode === 'grad' || currentMode === 'classic' || currentMode === 'maze' || currentMode === 'danger') && goal.x === x && goal.y === y) {
+            cell.innerHTML = '<span class="black">/</span>';
+          }
+          else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) {
+            cell.innerHTML = '<span class="black">/</span>';
+          }
+          else if (currentMode === 'grad' && isStaticEnemy(x, y)) {
+            cell.innerHTML = '<span class="black">,</span>';
+          }
+          else if (currentMode === 'grad' && isObstacle(x, y)) {
+            cell.innerHTML = '<span class="black">-</span>';
+          }
+          else if (currentMode === 'grad' && isPowerup(x, y)) {
+            cell.innerHTML = '<span class="black">*</span>';
+          }
+          else if (currentMode === 'maze') {
+            if (mazeGrid[y] && mazeGrid[y][x] === 0) cell.innerHTML = '<span class="black">#</span>';
+            else cell.innerHTML = '&nbsp;';
+          }
+          else if (currentMode === 'danger' && hz) {
+            if (hz.state === 'warn') cell.innerHTML = '<span class="warn">x</span>';
+            else cell.innerHTML = '<span class="boom">X</span>';
+          }
+          else {
+            cell.innerHTML = '&nbsp;';
+          }
+
+          gameDiv.appendChild(cell);
+        }
+      }
     }
 
-    function addTime(seconds) {
-      time += seconds;
+    function startTimer() {
+      clearInterval(interval);
       timerSpan.textContent = time;
+      interval = setInterval(() => {
+        if (!paused) {
+          time--;
+          if (time <= 0) {
+            time = 0;
+            timerSpan.textContent = 0;
+            clearInterval(interval);
+            running = false;
+            if (currentMode === 'survival') setTimeout(victory, 300);
+            else setTimeout(gameOver, 300);
+          } else {
+            timerSpan.textContent = time;
+          }
+        }
+      }, 1000);
     }
 
     function gameOver(msg = "Time is up!") {
       gameStarted = false;
       running = false;
-      clearInterval(survivalEnemiesMoveInterval);
+
+      clearAllIntervals();
+
       const highscoreKey =
-        currentMode === 'grad' ? 'gradHighScore' : 
+        currentMode === 'grad' ? 'gradHighScore' :
         currentMode === 'classic' ? 'classicHighScore' :
         currentMode === 'maze' ? 'mazeHighScore' :
+        currentMode === 'danger' ? 'dangerHighScore' :
         'survivalHighScore';
+
       let highscore = localStorage.getItem(highscoreKey) || 0;
       if (score > highscore) {
         localStorage.setItem(highscoreKey, score);
         highscore = score;
       }
+
       highscoreSpan.textContent = highscore;
       highscoreTop.textContent = highscore;
       gameOverMsg.textContent = msg;
       finalscore.textContent = score;
+
       uiDiv.classList.add('hide');
       gameoverDiv.classList.remove('hide');
+      pauseOverlay.style.display = 'none';
     }
 
     function victory() {
       gameStarted = false;
       running = false;
-      clearInterval(survivalEnemiesMoveInterval);
+
+      clearAllIntervals();
+
       score = 100;
       const highscoreKey = 'survivalHighScore';
       let highscore = localStorage.getItem(highscoreKey) || 0;
@@ -701,8 +779,10 @@
       victoryscore.textContent = score;
       victoryhighscore.textContent = highscore;
       highscoreTop.textContent = highscore;
+
       uiDiv.classList.add('hide');
       victoryDiv.classList.remove('hide');
+      pauseOverlay.style.display = 'none';
     }
 
     function movePlayer(dx, dy) {
@@ -712,15 +792,20 @@
       let newY = player.y + dy;
 
       if (currentMode === 'maze') {
-        if (newX < 0 || newX >= width || newY < 0 || newY >= height) {
-          return;
-        }
-        if (mazeGrid[newY][newX] === 0) {
-          return;
-        }
+        if (newX < 0 || newX >= width || newY < 0 || newY >= height) return;
+        if (mazeGrid[newY][newX] === 0) return;
       } else {
         newX = (newX + width) % width;
         newY = (newY + height) % height;
+      }
+
+
+      if (currentMode !== 'maze' && currentMode !== 'survival') {
+        const isTryingToEnterGoal = (newX === goal.x && newY === goal.y);
+        const canEnterFromRight = (dx === 1); 
+        if (isTryingToEnterGoal && !canEnterFromRight) {
+          return; 
+        }
       }
 
       if (currentMode === 'survival' && isSurvivalEnemy(newX, newY)) {
@@ -748,124 +833,130 @@
         }
       }
 
+      if (currentMode === 'danger') {
+        if (isHazardBoom(newX, newY)) {
+          player.x = newX;
+          player.y = newY;
+          drawGrid();
+          gameOver("You stepped into a blast!");
+          return;
+        }
+      }
+
       const isMazeMode = currentMode === 'maze';
-      const goalActivationCondition = isMazeMode ? 
-        (newX === goal.x && newY === goal.y) :  
-        (newX === goal.x && newY === goal.y && dx === 1);  
+      const goalActivationCondition = isMazeMode
+        ? (newX === goal.x && newY === goal.y)
+        : (newX === goal.x && newY === goal.y && dx === 1);
 
       if (currentMode !== 'survival' && goalActivationCondition) {
         player.x = newX;
         player.y = newY;
+
         score++;
         scoreSpan.textContent = score;
-        
+
         if (currentMode === 'maze') {
           addTime(20);
           showPlusTime(newX, newY, './ +20 sec');
-          generateMaze(); 
+          generateMaze();
         } else {
           addTime(2);
           showPlusTime(newX, newY, './ +2 sec');
           placeGoal();
           if (currentMode === 'grad') generateFullMode();
         }
+
         drawGrid();
         return;
       }
 
       player.x = newX;
       player.y = newY;
-      drawGrid();
-    }
 
-    function startTimer() {
-      clearInterval(interval);
-      timerSpan.textContent = time;
-      interval = setInterval(() => {
-        if (!paused) {
-          time--;
-          if (time <= 0) {
-            time = 0;
-            timerSpan.textContent = 0;
-            clearInterval(interval);
-            running = false;
-            if (currentMode === 'survival') {
-              setTimeout(victory, 300);
-            } else {
-              setTimeout(gameOver, 300);
-            }
-          } else {
-            timerSpan.textContent = time;
-          }
-        }
-      }, 1000);
+      if (currentMode === 'danger' && isHazardBoom(player.x, player.y)) {
+        drawGrid();
+        gameOver("You got blasted!");
+        return;
+      }
+
+      drawGrid();
     }
 
     function startGame(mode) {
       currentMode = mode;
-      player = {x: 1, y: 1};
-      goal = {x: 0, y: 0};
+
+      player = { x: 15, y: 10 };
+      goal = { x: 0, y: 0 };
       score = 0;
       time = getInitialTime(mode);
+
       running = true;
       gameStarted = true;
       paused = false;
-      
+
       scoreSpan.textContent = '0';
       timerSpan.textContent = time;
-      
+
+      clearAllIntervals();
+
+      obstacles = []; staticEnemies = []; powerups = [];
+      enemies = [];
+      hazards = [];
+      mazeGrid = [];
+
       if (mode === 'survival') {
-        player = {x: 15, y: 10};
         generateSurvivalEnemies();
-        clearInterval(survivalEnemiesMoveInterval);
         survivalEnemiesMoveInterval = setInterval(() => {
-          if (running && !paused) {
-            moveSurvivalEnemies();
-          }
+          if (running && !paused) moveSurvivalEnemies();
         }, 1000);
-      } else if (mode === 'maze') {
-        obstacles = [];
-        staticEnemies = [];
-        powerups = [];
-        generateMaze();
-      } else {
-        player = {x: 15, y: 10};
-        clearInterval(survivalEnemiesMoveInterval);
-        placeGoal();
-        if (mode === 'grad') {
-          generateFullMode();
-        } else {
-          generateClassicMode();
-        }
       }
-      
+      else if (mode === 'maze') {
+        player = { x: 1, y: 1 };
+        generateMaze();
+      }
+      else if (mode === 'grad') {
+        placeGoal();
+        generateFullMode();
+      }
+      else if (mode === 'classic') {
+        placeGoal();
+        generateClassicMode();
+      }
+      else if (mode === 'danger') {
+        placeGoal();
+        startDangerSystem();
+      }
+
       drawGrid();
       uiDiv.classList.remove('hide');
       welcomeDiv.classList.add('hide');
       gameoverDiv.classList.add('hide');
       victoryDiv.classList.add('hide');
       pauseOverlay.style.display = 'none';
-      
+
       const highscoreKey =
-        mode === 'grad' ? 'gradHighScore' : 
+        mode === 'grad' ? 'gradHighScore' :
         mode === 'classic' ? 'classicHighScore' :
         mode === 'maze' ? 'mazeHighScore' :
+        mode === 'danger' ? 'dangerHighScore' :
         'survivalHighScore';
+
       highscoreTop.textContent = localStorage.getItem(highscoreKey) || 0;
-      
+
       startTimer();
     }
 
     document.addEventListener('keydown', e => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-      }
+      if (e.code === 'Space') e.preventDefault();
+
       if (e.code === 'Space' && gameStarted && running) {
         paused = !paused;
         pauseOverlay.style.display = paused ? 'flex' : 'none';
         return;
       }
+
       if (!running || !gameStarted || paused) return;
+
       if (['ArrowUp','KeyW','KeyЦ'].includes(e.code)) movePlayer(0, -1);
       if (['ArrowDown','KeyS','KeyЫ'].includes(e.code)) movePlayer(0, 1);
       if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) movePlayer(-1, 0);
@@ -876,12 +967,14 @@
     classicBtn.onclick = () => startGame('classic');
     mazeBtn.onclick = () => startGame('maze');
     survivalBtn.onclick = () => startGame('survival');
+    dangerBtn.onclick = () => startGame('danger');
+
     restartBtn.onclick = () => startGame(currentMode);
     restartBtnVictory.onclick = () => startGame(currentMode);
+
     menuBtn.onclick = showMenu;
     menuBtnGameover.onclick = showMenu;
     menuBtnVictory.onclick = showMenu;
   </script>
 </body>
 </html>
-
