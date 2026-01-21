@@ -154,8 +154,8 @@
       z-index: 2;
     }
     .black { color: #111 !important; font-weight: bold; }
-    .warn { color: #b88600 !important; font-weight: 900; } 
-    .boom { color: #b80000 !important; font-weight: 900; } 
+    .warn { color: #b88600 !important; font-weight: 900; }
+    .boom { color: #b80000 !important; font-weight: 900; }
     .hide { display: none !important; }
 
     .float-text {
@@ -251,6 +251,20 @@
             • SPACE pause
           </div>
         </div>
+
+        <div class="mode-card">
+          <button class="big-btn" id="snakeBtn">./ GRAD SNAKE</button>
+          <div class="mode-desc">
+            Classic snake on the same field.<br>
+            • Always moving as "./"<br>
+            • Eat "./" to grow (adds "/" segments)<br>
+            • One point at a time<br>
+            • Wall/self hit = lose<br>
+            • No timer<br>
+            • SPACE pause
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -313,10 +327,15 @@
     let enemies = [], survivalEnemiesMoveInterval;
 
     let obstacles = [], powerups = [], staticEnemies = [];
-    let mazeGrid = []; 
+    let mazeGrid = [];
 
-    let hazards = []; 
+    let hazards = [];
     let hazardSpawnInterval, hazardTickInterval;
+
+    let snake = [];
+    let snakeDir = { dx: 1, dy: 0 };
+    let snakeNextDir = { dx: 1, dy: 0 };
+    let snakeTickInterval;
 
     const gameContainer = document.getElementById('gameContainer');
     const gameDiv = document.getElementById('game');
@@ -342,6 +361,7 @@
     const mazeBtn = document.getElementById('mazeBtn');
     const survivalBtn = document.getElementById('survivalBtn');
     const dangerBtn = document.getElementById('dangerBtn');
+    const snakeBtn = document.getElementById('snakeBtn');
 
     const restartBtn = document.getElementById('restartBtn');
     const restartBtnVictory = document.getElementById('restartBtnVictory');
@@ -357,6 +377,7 @@
       clearInterval(survivalEnemiesMoveInterval);
       clearInterval(hazardSpawnInterval);
       clearInterval(hazardTickInterval);
+      clearInterval(snakeTickInterval); 
     }
 
     function showMenu() {
@@ -379,6 +400,10 @@
       staticEnemies = [];
       powerups = [];
       mazeGrid = [];
+
+      snake = [];
+      snakeDir = { dx: 1, dy: 0 };
+      snakeNextDir = { dx: 1, dy: 0 };
     }
 
     function showPlusTime(x, y, text) {
@@ -403,6 +428,9 @@
     function isStaticEnemy(x, y) { return staticEnemies.some(e => e.x === x && e.y === y); }
     function isPowerup(x, y) { return powerups.some(p => p.x === x && p.y === y); }
     function isSurvivalEnemy(x, y) { return enemies.some(e => e.x === x && e.y === y); }
+
+    function isSnakeCell(x, y) { return snake.some(s => s.x === x && s.y === y); }
+    function isSnakeHead(x, y) { return snake.length && snake[0].x === x && snake[0].y === y; }
 
     function isNearGoal(x, y) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -610,7 +638,7 @@
     function spawnHazardMarkers() {
       if (!running || !gameStarted || paused) return;
 
-      const count = Math.floor(Math.random() * 130) + 120; 
+      const count = Math.floor(Math.random() * 130) + 120;
       let placed = 0;
       let tries = 0;
 
@@ -659,11 +687,13 @@
 
     function placeGoal() {
       if (currentMode === 'maze') return;
+
       do {
         goal.x = Math.floor(Math.random() * width);
         goal.y = Math.floor(Math.random() * height);
       } while (
-        (goal.x === player.x && goal.y === player.y) ||
+        (currentMode === 'snake' && isSnakeCell(goal.x, goal.y)) ||
+        (currentMode !== 'snake' && (goal.x === player.x && goal.y === player.y)) ||
         (goal.x === 0) ||
         (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y))) ||
         (currentMode === 'danger' && isHazardAny(goal.x, goal.y))
@@ -678,6 +708,24 @@
           cell.className = 'cell';
 
           const hz = getHazardAt(x, y);
+
+          if (currentMode === 'snake') {
+            if (isSnakeHead(x, y)) {
+              cell.innerHTML = '<span class="black">./</span>';
+            }
+            else if (isSnakeCell(x, y)) {
+              cell.innerHTML = '<span class="black">/</span>';
+            }
+            else if (goal.x === x && goal.y === y) {
+              cell.innerHTML = '<span class="black">./</span>';
+            }
+            else {
+              cell.innerHTML = '&nbsp;';
+            }
+
+            gameDiv.appendChild(cell);
+            continue;
+          }
 
           if (player.x === x && player.y === y) {
             cell.innerHTML = '<span class="black">.</span>';
@@ -745,6 +793,7 @@
         currentMode === 'classic' ? 'classicHighScore' :
         currentMode === 'maze' ? 'mazeHighScore' :
         currentMode === 'danger' ? 'dangerHighScore' :
+        currentMode === 'snake' ? 'snakeHighScore' :
         'survivalHighScore';
 
       let highscore = localStorage.getItem(highscoreKey) || 0;
@@ -787,6 +836,7 @@
 
     function movePlayer(dx, dy) {
       if (!running || !gameStarted || paused) return;
+      if (currentMode === 'snake') return; 
 
       let newX = player.x + dx;
       let newY = player.y + dy;
@@ -799,12 +849,11 @@
         newY = (newY + height) % height;
       }
 
-
       if (currentMode !== 'maze' && currentMode !== 'survival') {
         const isTryingToEnterGoal = (newX === goal.x && newY === goal.y);
-        const canEnterFromRight = (dx === 1); 
+        const canEnterFromRight = (dx === 1);
         if (isTryingToEnterGoal && !canEnterFromRight) {
-          return; 
+          return;
         }
       }
 
@@ -882,6 +931,65 @@
       drawGrid();
     }
 
+    function resetSnakeMode() {
+      snake = [
+        { x: 15, y: 10 },
+        { x: 14, y: 10 },
+        { x: 13, y: 10 }
+      ];
+      snakeDir = { dx: 1, dy: 0 };
+      snakeNextDir = { dx: 1, dy: 0 };
+
+      goal = { x: 0, y: 0 };
+      placeGoal();
+    }
+
+    function setSnakeDirection(dx, dy) {
+      if (dx === -snakeDir.dx && dy === -snakeDir.dy) return;
+      snakeNextDir = { dx, dy };
+    }
+
+    function snakeStep() {
+      if (!running || !gameStarted || paused) return;
+      if (currentMode !== 'snake') return;
+
+      snakeDir = { ...snakeNextDir };
+
+      const head = snake[0];
+      const newHead = { x: head.x + snakeDir.dx, y: head.y + snakeDir.dy };
+
+      if (newHead.x < 0 || newHead.x >= width || newHead.y < 0 || newHead.y >= height) {
+        gameOver("Snake hit the wall!");
+        return;
+      }
+
+      if (snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
+        gameOver("Snake hit itself!");
+        return;
+      }
+
+      const ate = (newHead.x === goal.x && newHead.y === goal.y);
+
+      snake.unshift(newHead);
+
+      if (ate) {
+        score += 1;
+        scoreSpan.textContent = score;
+
+        placeGoal(); 
+      } else {
+        snake.pop();
+      }
+
+      drawGrid();
+    }
+
+    function startSnakeSystem() {
+      clearInterval(snakeTickInterval);
+      const speedMs = 120;
+      snakeTickInterval = setInterval(snakeStep, speedMs);
+    }
+
     function startGame(mode) {
       currentMode = mode;
 
@@ -903,6 +1011,10 @@
       enemies = [];
       hazards = [];
       mazeGrid = [];
+
+      snake = [];
+      snakeDir = { dx: 1, dy: 0 };
+      snakeNextDir = { dx: 1, dy: 0 };
 
       if (mode === 'survival') {
         generateSurvivalEnemies();
@@ -926,6 +1038,11 @@
         placeGoal();
         startDangerSystem();
       }
+      else if (mode === 'snake') {
+        timerSpan.textContent = '--';
+        resetSnakeMode();
+        startSnakeSystem();
+      }
 
       drawGrid();
       uiDiv.classList.remove('hide');
@@ -939,11 +1056,12 @@
         mode === 'classic' ? 'classicHighScore' :
         mode === 'maze' ? 'mazeHighScore' :
         mode === 'danger' ? 'dangerHighScore' :
+        mode === 'snake' ? 'snakeHighScore' :
         'survivalHighScore';
 
       highscoreTop.textContent = localStorage.getItem(highscoreKey) || 0;
 
-      startTimer();
+      if (mode !== 'snake') startTimer();
     }
 
     document.addEventListener('keydown', e => {
@@ -957,6 +1075,14 @@
 
       if (!running || !gameStarted || paused) return;
 
+      if (currentMode === 'snake') {
+        if (['ArrowUp','KeyW','KeyЦ'].includes(e.code)) setSnakeDirection(0, -1);
+        if (['ArrowDown','KeyS','KeyЫ'].includes(e.code)) setSnakeDirection(0, 1);
+        if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) setSnakeDirection(-1, 0);
+        if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) setSnakeDirection(1, 0);
+        return;
+      }
+
       if (['ArrowUp','KeyW','KeyЦ'].includes(e.code)) movePlayer(0, -1);
       if (['ArrowDown','KeyS','KeyЫ'].includes(e.code)) movePlayer(0, 1);
       if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) movePlayer(-1, 0);
@@ -968,6 +1094,7 @@
     mazeBtn.onclick = () => startGame('maze');
     survivalBtn.onclick = () => startGame('survival');
     dangerBtn.onclick = () => startGame('danger');
+    snakeBtn.onclick = () => startGame('snake');
 
     restartBtn.onclick = () => startGame(currentMode);
     restartBtnVictory.onclick = () => startGame(currentMode);
