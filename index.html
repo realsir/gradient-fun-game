@@ -27,7 +27,6 @@
       pointer-events: none;
       z-index: 0;
       user-select: none;
-      background: none;
     }
     .overlay {
       position: fixed;
@@ -71,6 +70,7 @@
       max-width: 280px;
     }
     .big-btn:hover, .big-btn:focus { background: #111; }
+
     .mode-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -94,6 +94,7 @@
       line-height: 1.4;
       margin: 0;
     }
+
     #ui {
       z-index: 1;
       position: relative;
@@ -130,6 +131,7 @@
       white-space: nowrap;
     }
     #menuBtn:hover { background: #fff; border-color: #bbb; }
+
     #gameContainer { position: relative; width: 720px; height: 480px; margin-bottom: 4px; }
     #game {
       display: grid;
@@ -153,9 +155,11 @@
       user-select: none;
       z-index: 2;
     }
+
     .black { color: #111 !important; font-weight: bold; }
     .warn { color: #b88600 !important; font-weight: 900; }
     .boom { color: #b80000 !important; font-weight: 900; }
+    .cyan { color: #007a9a !important; font-weight: 900; }
     .hide { display: none !important; }
 
     .float-text {
@@ -172,6 +176,7 @@
       50% { transform: translate(-50%, -20px) scale(1.2); }
       100% { opacity: 0; transform: translate(-50%, -50px) scale(0.8); }
     }
+
     #pauseOverlay {
       position: fixed;
       z-index: 10;
@@ -245,7 +250,7 @@
           <button class="big-btn" id="dangerBtn">./ GRAD DANGER ZONE</button>
           <div class="mode-desc">
             Telegraph blasts (anti-camping).<br>
-            • Every 2 sec spawns 2–4 "x"<br>
+            • Every 2 sec spawns "x"<br>
             • After ~1.2 sec -> "X" blast (fatal)<br>
             • Blast lasts ~0.7 sec<br>
             • SPACE pause
@@ -258,13 +263,19 @@
             Classic snake on the same field.<br>
             • Always moving as "./"<br>
             • Eat "./" to grow (adds "/" segments)<br>
-            • One point at a time<br>
             • Wall/self hit = lose<br>
-            • No timer<br>
             • SPACE pause
           </div>
         </div>
 
+        <div class="mode-card">
+          <button class="big-btn" id="shootoutBtn">./ GRAD SHOOTOUT</button>
+          <div class="mode-desc">
+            Vertical shooter on the same grid.<br>
+            • Enemies spawn at top and fall straight down<br>
+            • Move only on bottom row and shoot<br>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -337,6 +348,17 @@
     let snakeNextDir = { dx: 1, dy: 0 };
     let snakeTickInterval;
 
+    let shootEnemies = [];
+    let bullets = [];
+    let enemySpawnInterval, enemyFallInterval, bulletTickInterval;
+    let shootCooldownMs = 0;
+
+    const SHOOTOUT_MAX_ENEMIES = 12;
+    const SHOOTOUT_SPAWN_EVERY_MS = 650;
+    const SHOOTOUT_ENEMY_FALL_EVERY_MS = 520;
+    const SHOOTOUT_BULLET_TICK_MS = 60;
+    const SHOOTOUT_COOLDOWN_MS = 140;
+
     const gameContainer = document.getElementById('gameContainer');
     const gameDiv = document.getElementById('game');
     const scoreSpan = document.getElementById('score');
@@ -362,6 +384,7 @@
     const survivalBtn = document.getElementById('survivalBtn');
     const dangerBtn = document.getElementById('dangerBtn');
     const snakeBtn = document.getElementById('snakeBtn');
+    const shootoutBtn = document.getElementById('shootoutBtn');
 
     const restartBtn = document.getElementById('restartBtn');
     const restartBtnVictory = document.getElementById('restartBtnVictory');
@@ -369,6 +392,7 @@
 
     function getInitialTime(mode) {
       if (mode === 'maze') return 60;
+      if (mode === 'shootout') return 60;
       return 30;
     }
 
@@ -377,7 +401,11 @@
       clearInterval(survivalEnemiesMoveInterval);
       clearInterval(hazardSpawnInterval);
       clearInterval(hazardTickInterval);
-      clearInterval(snakeTickInterval); 
+      clearInterval(snakeTickInterval);
+
+      clearInterval(enemySpawnInterval);
+      clearInterval(enemyFallInterval);
+      clearInterval(bulletTickInterval);
     }
 
     function showMenu() {
@@ -404,6 +432,10 @@
       snake = [];
       snakeDir = { dx: 1, dy: 0 };
       snakeNextDir = { dx: 1, dy: 0 };
+
+      shootEnemies = [];
+      bullets = [];
+      shootCooldownMs = 0;
     }
 
     function showPlusTime(x, y, text) {
@@ -431,6 +463,9 @@
 
     function isSnakeCell(x, y) { return snake.some(s => s.x === x && s.y === y); }
     function isSnakeHead(x, y) { return snake.length && snake[0].x === x && snake[0].y === y; }
+
+    function isShootEnemy(x, y) { return shootEnemies.some(e => e.x === x && e.y === y); }
+    function isBullet(x, y) { return bullets.some(b => b.x === x && b.y === y); }
 
     function isNearGoal(x, y) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -692,12 +727,109 @@
         goal.x = Math.floor(Math.random() * width);
         goal.y = Math.floor(Math.random() * height);
       } while (
-        (currentMode === 'snake' && isSnakeCell(goal.x, goal.y)) ||
         (currentMode !== 'snake' && (goal.x === player.x && goal.y === player.y)) ||
         (goal.x === 0) ||
         (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y))) ||
         (currentMode === 'danger' && isHazardAny(goal.x, goal.y))
       );
+    }
+
+    function resetShootoutMode() {
+      shootEnemies = [];
+      bullets = [];
+      shootCooldownMs = 0;
+      player = { x: Math.floor(width / 2), y: height - 1 };
+    }
+
+    function spawnShootEnemy() {
+      if (!running || !gameStarted || paused) return;
+      if (currentMode !== 'shootout') return;
+      if (shootEnemies.length >= SHOOTOUT_MAX_ENEMIES) return;
+
+      let tries = 0;
+      while (tries++ < 60) {
+        const x = Math.floor(Math.random() * width);
+        const y = 0;
+        if (shootEnemies.some(e => e.x === x && e.y === y)) continue;
+        if (bullets.some(b => b.x === x && b.y === y)) continue;
+        shootEnemies.push({ x, y });
+        break;
+      }
+      drawGrid();
+    }
+
+    function shoot() {
+      if (!running || !gameStarted || paused) return;
+      if (currentMode !== 'shootout') return;
+      if (shootCooldownMs > 0) return;
+      shootCooldownMs = SHOOTOUT_COOLDOWN_MS;
+
+      const bx = player.x;
+      const by = player.y - 1;
+      if (by < 0) return;
+
+      if (bullets.length >= 7) return;
+
+      bullets.push({ x: bx, y: by });
+      drawGrid();
+    }
+
+    function resolveBulletEnemyCollisions() {
+      for (let bi = bullets.length - 1; bi >= 0; bi--) {
+        const b = bullets[bi];
+        const hitIdx = shootEnemies.findIndex(e => e.x === b.x && e.y === b.y);
+        if (hitIdx !== -1) {
+          shootEnemies.splice(hitIdx, 1);
+          bullets.splice(bi, 1);
+          score += 1;
+          scoreSpan.textContent = score;
+        }
+      }
+    }
+
+    function tickShootoutBullets() {
+      if (!running || !gameStarted || paused) return;
+      if (currentMode !== 'shootout') return;
+
+      if (shootCooldownMs > 0) shootCooldownMs -= SHOOTOUT_BULLET_TICK_MS;
+
+      bullets.forEach(b => b.y -= 1);
+      bullets = bullets.filter(b => b.y >= 0);
+
+      resolveBulletEnemyCollisions();
+      drawGrid();
+    }
+
+    function tickShootoutEnemiesFall() {
+      if (!running || !gameStarted || paused) return;
+      if (currentMode !== 'shootout') return;
+
+      shootEnemies.forEach(e => e.y += 1);
+
+      if (shootEnemies.some(e => e.x === player.x && e.y === player.y)) {
+        gameOver("Enemy hit you!");
+        return;
+      }
+
+      if (shootEnemies.some(e => e.y >= height)) {
+        gameOver("Enemy slipped through!");
+        return;
+      }
+
+      resolveBulletEnemyCollisions();
+      shootEnemies = shootEnemies.filter(e => e.y >= 0 && e.y < height);
+
+      drawGrid();
+    }
+
+    function startShootoutSystem() {
+      clearInterval(enemySpawnInterval);
+      clearInterval(enemyFallInterval);
+      clearInterval(bulletTickInterval);
+
+      enemySpawnInterval = setInterval(spawnShootEnemy, SHOOTOUT_SPAWN_EVERY_MS);
+      enemyFallInterval = setInterval(tickShootoutEnemiesFall, SHOOTOUT_ENEMY_FALL_EVERY_MS);
+      bulletTickInterval = setInterval(tickShootoutBullets, SHOOTOUT_BULLET_TICK_MS);
     }
 
     function drawGrid() {
@@ -706,23 +838,27 @@
         for (let x = 0; x < width; x++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
-
           const hz = getHazardAt(x, y);
 
-          if (currentMode === 'snake') {
-            if (isSnakeHead(x, y)) {
+          if (currentMode === 'shootout') {
+            if (player.x === x && player.y === y) {
+              cell.innerHTML = '<span class="black">.</span>';
+            } else if (isShootEnemy(x, y)) {
               cell.innerHTML = '<span class="black">./</span>';
-            }
-            else if (isSnakeCell(x, y)) {
-              cell.innerHTML = '<span class="black">/</span>';
-            }
-            else if (goal.x === x && goal.y === y) {
-              cell.innerHTML = '<span class="black">./</span>';
-            }
-            else {
+            } else if (isBullet(x, y)) {
+              cell.innerHTML = '<span class="cyan">|</span>';
+            } else {
               cell.innerHTML = '&nbsp;';
             }
+            gameDiv.appendChild(cell);
+            continue;
+          }
 
+          if (currentMode === 'snake') {
+            if (isSnakeHead(x, y)) cell.innerHTML = '<span class="black">./</span>';
+            else if (isSnakeCell(x, y)) cell.innerHTML = '<span class="black">/</span>';
+            else if (goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">./</span>';
+            else cell.innerHTML = '&nbsp;';
             gameDiv.appendChild(cell);
             continue;
           }
@@ -774,12 +910,22 @@
             clearInterval(interval);
             running = false;
             if (currentMode === 'survival') setTimeout(victory, 300);
-            else setTimeout(gameOver, 300);
+            else setTimeout(() => gameOver("Time is up!"), 300);
           } else {
             timerSpan.textContent = time;
           }
         }
       }, 1000);
+    }
+
+    function highscoreKeyForMode(mode) {
+      return mode === 'grad' ? 'gradHighScore' :
+        mode === 'classic' ? 'classicHighScore' :
+        mode === 'maze' ? 'mazeHighScore' :
+        mode === 'danger' ? 'dangerHighScore' :
+        mode === 'snake' ? 'snakeHighScore' :
+        mode === 'shootout' ? 'shootoutHighScore' :
+        'survivalHighScore';
     }
 
     function gameOver(msg = "Time is up!") {
@@ -788,17 +934,10 @@
 
       clearAllIntervals();
 
-      const highscoreKey =
-        currentMode === 'grad' ? 'gradHighScore' :
-        currentMode === 'classic' ? 'classicHighScore' :
-        currentMode === 'maze' ? 'mazeHighScore' :
-        currentMode === 'danger' ? 'dangerHighScore' :
-        currentMode === 'snake' ? 'snakeHighScore' :
-        'survivalHighScore';
-
-      let highscore = localStorage.getItem(highscoreKey) || 0;
+      const key = highscoreKeyForMode(currentMode);
+      let highscore = localStorage.getItem(key) || 0;
       if (score > highscore) {
-        localStorage.setItem(highscoreKey, score);
+        localStorage.setItem(key, score);
         highscore = score;
       }
 
@@ -819,10 +958,10 @@
       clearAllIntervals();
 
       score = 100;
-      const highscoreKey = 'survivalHighScore';
-      let highscore = localStorage.getItem(highscoreKey) || 0;
+      const key = highscoreKeyForMode('survival');
+      let highscore = localStorage.getItem(key) || 0;
       if (score > highscore) {
-        localStorage.setItem(highscoreKey, score);
+        localStorage.setItem(key, score);
         highscore = score;
       }
       victoryscore.textContent = score;
@@ -836,7 +975,15 @@
 
     function movePlayer(dx, dy) {
       if (!running || !gameStarted || paused) return;
-      if (currentMode === 'snake') return; 
+
+      if (currentMode === 'shootout') {
+        const newX = Math.max(0, Math.min(width - 1, player.x + dx));
+        player.x = newX;
+        drawGrid();
+        return;
+      }
+
+      if (currentMode === 'snake') return;
 
       let newX = player.x + dx;
       let newY = player.y + dy;
@@ -852,9 +999,7 @@
       if (currentMode !== 'maze' && currentMode !== 'survival') {
         const isTryingToEnterGoal = (newX === goal.x && newY === goal.y);
         const canEnterFromRight = (dx === 1);
-        if (isTryingToEnterGoal && !canEnterFromRight) {
-          return;
-        }
+        if (isTryingToEnterGoal && !canEnterFromRight) return;
       }
 
       if (currentMode === 'survival' && isSurvivalEnemy(newX, newY)) {
@@ -975,8 +1120,7 @@
       if (ate) {
         score += 1;
         scoreSpan.textContent = score;
-
-        placeGoal(); 
+        placeGoal();
       } else {
         snake.pop();
       }
@@ -1016,6 +1160,10 @@
       snakeDir = { dx: 1, dy: 0 };
       snakeNextDir = { dx: 1, dy: 0 };
 
+      shootEnemies = [];
+      bullets = [];
+      shootCooldownMs = 0;
+
       if (mode === 'survival') {
         generateSurvivalEnemies();
         survivalEnemiesMoveInterval = setInterval(() => {
@@ -1043,6 +1191,10 @@
         resetSnakeMode();
         startSnakeSystem();
       }
+      else if (mode === 'shootout') {
+        resetShootoutMode();
+        startShootoutSystem();
+      }
 
       drawGrid();
       uiDiv.classList.remove('hide');
@@ -1051,22 +1203,32 @@
       victoryDiv.classList.add('hide');
       pauseOverlay.style.display = 'none';
 
-      const highscoreKey =
-        mode === 'grad' ? 'gradHighScore' :
-        mode === 'classic' ? 'classicHighScore' :
-        mode === 'maze' ? 'mazeHighScore' :
-        mode === 'danger' ? 'dangerHighScore' :
-        mode === 'snake' ? 'snakeHighScore' :
-        'survivalHighScore';
-
-      highscoreTop.textContent = localStorage.getItem(highscoreKey) || 0;
+      const key = highscoreKeyForMode(mode);
+      highscoreTop.textContent = localStorage.getItem(key) || 0;
 
       if (mode !== 'snake') startTimer();
     }
 
     document.addEventListener('keydown', e => {
-      if (e.code === 'Space') e.preventDefault();
+      // Shootout: Space = shoot, no pause on Space
+      if (currentMode === 'shootout') {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          shoot();
+          return;
+        }
 
+        if (!running || !gameStarted || paused) return;
+
+        if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) movePlayer(-1, 0);
+        if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) movePlayer(1, 0);
+
+        if (['ArrowUp','KeyW','KeyЦ','Enter'].includes(e.code)) shoot();
+        return;
+      }
+
+      // Other modes: Space = pause
+      if (e.code === 'Space') e.preventDefault();
       if (e.code === 'Space' && gameStarted && running) {
         paused = !paused;
         pauseOverlay.style.display = paused ? 'flex' : 'none';
@@ -1095,6 +1257,7 @@
     survivalBtn.onclick = () => startGame('survival');
     dangerBtn.onclick = () => startGame('danger');
     snakeBtn.onclick = () => startGame('snake');
+    shootoutBtn.onclick = () => startGame('shootout');
 
     restartBtn.onclick = () => startGame(currentMode);
     restartBtnVictory.onclick = () => startGame(currentMode);
