@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GradGame</title>
   <style>
     html, body { height: 100%; margin: 0; padding: 0; }
@@ -28,6 +29,7 @@
       z-index: 0;
       user-select: none;
     }
+
     .overlay {
       position: fixed;
       left: 0; top: 0; right: 0; bottom: 0;
@@ -51,6 +53,7 @@
       max-height: 85vh;
       overflow-y: auto;
     }
+
     .big-btn {
       display: inline-block;
       margin: 8px 0;
@@ -108,17 +111,19 @@
       gap: 15px;
       align-items: center;
       margin-bottom: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
     }
     #stats {
-      font-size: 20px;
+      font-size: 18px;
       background: #fffde6ee;
-      padding: 5px 35px;
+      padding: 6px 18px;
       border-radius: 10px;
       color: #1a1a1a;
       white-space: nowrap;
     }
     #menuBtn {
-      padding: 5px 25px;
+      padding: 6px 18px;
       font-size: 18px;
       background: #fffde6ee;
       color: #1a1a1a;
@@ -131,6 +136,15 @@
       white-space: nowrap;
     }
     #menuBtn:hover { background: #fff; border-color: #bbb; }
+
+    #substats {
+      font-size: 16px;
+      background: #ffffffdd;
+      padding: 6px 14px;
+      border-radius: 10px;
+      color: #1a1a1a;
+      white-space: nowrap;
+    }
 
     #gameContainer { position: relative; width: 720px; height: 480px; margin-bottom: 4px; }
     #game {
@@ -160,7 +174,13 @@
     .warn { color: #b88600 !important; font-weight: 900; }
     .boom { color: #b80000 !important; font-weight: 900; }
     .cyan { color: #007a9a !important; font-weight: 900; }
+    .magenta { color: #7a00a8 !important; font-weight: 900; }
+    .green { color: #0b8a00 !important; font-weight: 900; }
     .hide { display: none !important; }
+
+    .combo1 { opacity: 1; transform: scale(1.0); }
+    .combo2 { opacity: 0.5; transform: scale(1.25); } 
+    .combo3 { opacity: 0.25; transform: scale(1.5); } 
 
     .float-text {
       position: absolute;
@@ -192,6 +212,12 @@
       font-family: monospace;
       letter-spacing: 0.2em;
     }
+
+    @media (max-width: 760px) {
+      #gameContainer { transform: scale(0.92); transform-origin: top center; }
+      .mode-grid { grid-template-columns: 1fr; }
+      #stats, #substats { font-size: 15px; }
+    }
   </style>
 </head>
 <body>
@@ -222,6 +248,17 @@
             • Collect only as "./" (from right)<br>
             • You cannot pass through "/"<br>
             • SPACE pause/unpause
+          </div>
+        </div>
+
+        <div class="mode-card">
+          <button class="big-btn" id="comboBtn">./ GRAD COMBO</button>
+          <div class="mode-desc">
+            Chain: / → / → / (visual hint by transparency/size).<br>
+            • Step window: 5 sec, refresh on correct step<br>
+            • Wrong step / timeout resets chain + streak<br>
+            • Streak = multiplier + time bonus on chain complete<br>
+            • SPACE pause
           </div>
         </div>
 
@@ -274,6 +311,7 @@
             Vertical shooter on the same grid.<br>
             • Enemies spawn at top and fall straight down<br>
             • Move only on bottom row and shoot<br>
+            • Space/Enter shoot (no pause on Space)
           </div>
         </div>
       </div>
@@ -286,7 +324,7 @@
       Your score: <span id="finalscore"></span><br>
       High score: <span id="highscore"></span>
       <br />
-      <div style="display:flex;gap:15px;justify-content:center;margin-top:20px;">
+      <div style="display:flex;gap:15px;justify-content:center;margin-top:20px;flex-wrap:wrap;">
         <button class="big-btn" id="restartBtn" style="width:auto;">./ Restart</button>
         <button class="big-btn" id="menuBtnGameover" style="width:auto;">./ Menu</button>
       </div>
@@ -299,7 +337,7 @@
       Survival time: <span id="victoryscore"></span><br>
       Best survival: <span id="victoryhighscore"></span>
       <br />
-      <div style="display:flex;gap:15px;justify-content:center;margin-top:20px;">
+      <div style="display:flex;gap:15px;justify-content:center;margin-top:20px;flex-wrap:wrap;">
         <button class="big-btn" id="restartBtnVictory" style="width:auto;">./ Restart</button>
         <button class="big-btn" id="menuBtnVictory" style="width:auto;">./ Menu</button>
       </div>
@@ -312,7 +350,15 @@
     <div class="ui-top-row">
       <button id="menuBtn">./ Menu</button>
       <div id="stats">
-        Score: <span id="score">0</span> | Time: <span id="timer">60</span> sec | High score: <span id="highscoreTop">0</span>
+        Score: <span id="score">0</span> |
+        Time: <span id="timer">60</span> sec |
+        High score: <span id="highscoreTop">0</span>
+      </div>
+      <div id="substats" class="hide">
+        Next: <span id="comboNext">/</span> |
+        Step left: <span id="comboStepLeft">--</span>s |
+        Streak: <span id="comboStreak">0</span> |
+        Mult: <span id="comboMult">x1.0</span>
       </div>
     </div>
     <div id="gameContainer"><div id="game"></div></div>
@@ -333,31 +379,22 @@
     fillBgText();
 
     const width = 30, height = 20;
-
-    let player, goal, score, time, interval, running, gameStarted = false, paused = false, currentMode = '';
-    let enemies = [], survivalEnemiesMoveInterval;
-
-    let obstacles = [], powerups = [], staticEnemies = [];
-    let mazeGrid = [];
-
-    let hazards = [];
-    let hazardSpawnInterval, hazardTickInterval;
-
-    let snake = [];
-    let snakeDir = { dx: 1, dy: 0 };
-    let snakeNextDir = { dx: 1, dy: 0 };
-    let snakeTickInterval;
-
-    let shootEnemies = [];
-    let bullets = [];
-    let enemySpawnInterval, enemyFallInterval, bulletTickInterval;
-    let shootCooldownMs = 0;
+    const cellSize = 24;
 
     const SHOOTOUT_MAX_ENEMIES = 12;
     const SHOOTOUT_SPAWN_EVERY_MS = 650;
     const SHOOTOUT_ENEMY_FALL_EVERY_MS = 520;
     const SHOOTOUT_BULLET_TICK_MS = 60;
     const SHOOTOUT_COOLDOWN_MS = 140;
+
+    const HAZARD_SPAWN_EVERY_MS = 2000;
+    const HAZARD_WARN_MS = 1200;
+    const HAZARD_BOOM_MS = 700;
+    const HAZARD_TICK_MS = 100;
+
+    const COMBO_COUNT = 3;
+    const COMBO_STEP_WINDOW_MS = 5000;  
+    const COMBO_TICK_MS = 100;
 
     const gameContainer = document.getElementById('gameContainer');
     const gameDiv = document.getElementById('game');
@@ -373,13 +410,14 @@
     const highscoreTop = document.getElementById('highscoreTop');
     const victoryhighscore = document.getElementById('victoryhighscore');
     const pauseOverlay = document.getElementById('pauseOverlay');
-    const menuBtn = document.getElementById('menuBtn');
 
+    const menuBtn = document.getElementById('menuBtn');
     const menuBtnGameover = document.getElementById('menuBtnGameover');
     const menuBtnVictory = document.getElementById('menuBtnVictory');
 
     const gradBtn = document.getElementById('gradBtn');
     const classicBtn = document.getElementById('classicBtn');
+    const comboBtn = document.getElementById('comboBtn');
     const mazeBtn = document.getElementById('mazeBtn');
     const survivalBtn = document.getElementById('survivalBtn');
     const dangerBtn = document.getElementById('dangerBtn');
@@ -390,9 +428,44 @@
     const restartBtnVictory = document.getElementById('restartBtnVictory');
     const gameOverMsg = document.getElementById('gameOverMsg');
 
+    const substatsDiv = document.getElementById('substats');
+    const comboNextSpan = document.getElementById('comboNext');
+    const comboStepLeftSpan = document.getElementById('comboStepLeft');
+    const comboStreakSpan = document.getElementById('comboStreak');
+    const comboMultSpan = document.getElementById('comboMult');
+
+    let player, goal, score, time;
+    let interval = null, running = false, gameStarted = false, paused = false, currentMode = '';
+
+    let enemies = [], survivalEnemiesMoveInterval = null;
+
+    let obstacles = [], powerups = [], staticEnemies = [];
+
+    let mazeGrid = [];
+
+    let hazards = [];
+    let hazardSpawnInterval = null, hazardTickInterval = null;
+
+    let snake = [];
+    let snakeDir = { dx: 1, dy: 0 };
+    let snakeNextDir = { dx: 1, dy: 0 };
+    let snakeTickInterval = null;
+
+    let shootEnemies = [];
+    let bullets = [];
+    let enemySpawnInterval = null, enemyFallInterval = null, bulletTickInterval = null;
+    let shootCooldownMs = 0;
+
+    let comboTargets = []; 
+    let comboIndex = 0;    
+    let comboStreak = 0; 
+    let comboStepMsLeft = 0;
+    let comboTickInterval = null;
+
     function getInitialTime(mode) {
       if (mode === 'maze') return 60;
       if (mode === 'shootout') return 60;
+      if (mode === 'combo') return 60;
       return 30;
     }
 
@@ -406,6 +479,8 @@
       clearInterval(enemySpawnInterval);
       clearInterval(enemyFallInterval);
       clearInterval(bulletTickInterval);
+
+      clearInterval(comboTickInterval);
     }
 
     function showMenu() {
@@ -436,13 +511,24 @@
       shootEnemies = [];
       bullets = [];
       shootCooldownMs = 0;
+
+      comboTargets = [];
+      comboIndex = 0;
+      comboStreak = 0;
+      comboStepMsLeft = 0;
+
+      substatsDiv.classList.add('hide');
     }
 
-    function showPlusTime(x, y, text) {
+    function showPlusTime(x, y, text, tint = 'green') {
       const float = document.createElement('div');
       float.className = 'float-text';
       float.textContent = text;
-      const cellSize = 24;
+
+      if (tint === 'warn') float.style.color = '#b88600';
+      else if (tint === 'boom') float.style.color = '#b80000';
+      else float.style.color = '#0b8a00';
+
       const offsetX = x * cellSize + cellSize / 2;
       const offsetY = y * cellSize + cellSize / 2;
       float.style.left = offsetX + 'px';
@@ -453,8 +539,12 @@
 
     function addTime(seconds) {
       time += seconds;
+      if (time < 0) time = 0;
       timerSpan.textContent = time;
     }
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function randInt(n) { return Math.floor(Math.random() * n); }
 
     function isObstacle(x, y) { return obstacles.some(o => o.x === x && o.y === y); }
     function isStaticEnemy(x, y) { return staticEnemies.some(e => e.x === x && e.y === y); }
@@ -467,74 +557,87 @@
     function isShootEnemy(x, y) { return shootEnemies.some(e => e.x === x && e.y === y); }
     function isBullet(x, y) { return bullets.some(b => b.x === x && b.y === y); }
 
-    function isNearGoal(x, y) {
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          if (goal.x + dx === x && goal.y + dy === y) return true;
-        }
-      }
-      return false;
+    function getComboTargetAt(x, y) { return comboTargets.find(t => t.x === x && t.y === y) || null; }
+
+    function highscoreKeyForMode(mode) {
+      return mode === 'grad' ? 'gradHighScore' :
+        mode === 'classic' ? 'classicHighScore' :
+        mode === 'combo' ? 'comboHighScore' :
+        mode === 'maze' ? 'mazeHighScore' :
+        mode === 'danger' ? 'dangerHighScore' :
+        mode === 'snake' ? 'snakeHighScore' :
+        mode === 'shootout' ? 'shootoutHighScore' :
+        'survivalHighScore';
     }
 
-    function isEnemyAdjacentToPlayer() {
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          if (dx === 0 && dy === 0) continue;
-          let checkX = (player.x + dx + width) % width;
-          let checkY = (player.y + dy + height) % height;
-          if (isSurvivalEnemy(checkX, checkY)) return true;
-        }
+    function gameOver(msg = "Time is up!") {
+      gameStarted = false;
+      running = false;
+
+      clearAllIntervals();
+
+      const key = highscoreKeyForMode(currentMode);
+      let highscore = Number(localStorage.getItem(key) || 0);
+      if (score > highscore) {
+        localStorage.setItem(key, String(score));
+        highscore = score;
       }
-      return false;
+
+      highscoreSpan.textContent = highscore;
+      highscoreTop.textContent = highscore;
+      gameOverMsg.textContent = msg;
+      finalscore.textContent = score;
+
+      uiDiv.classList.add('hide');
+      gameoverDiv.classList.remove('hide');
+      victoryDiv.classList.add('hide');
+      pauseOverlay.style.display = 'none';
+      substatsDiv.classList.add('hide');
     }
 
-    function generateSurvivalEnemies() {
-      enemies = [];
-      let tries = 0;
-      while (enemies.length < 15 && tries < 1000) {
-        tries++;
-        const ex = Math.floor(Math.random() * width);
-        const ey = Math.floor(Math.random() * height);
-        if ((ex === player.x && ey === player.y) || enemies.some(e => e.x === ex && e.y === ey)) continue;
-        enemies.push({ x: ex, y: ey });
+    function victory() {
+      gameStarted = false;
+      running = false;
+
+      clearAllIntervals();
+
+      score = 100;
+      const key = highscoreKeyForMode('survival');
+      let highscore = Number(localStorage.getItem(key) || 0);
+      if (score > highscore) {
+        localStorage.setItem(key, String(score));
+        highscore = score;
       }
+
+      victoryscore.textContent = score;
+      victoryhighscore.textContent = highscore;
+      highscoreTop.textContent = highscore;
+
+      uiDiv.classList.add('hide');
+      victoryDiv.classList.remove('hide');
+      gameoverDiv.classList.add('hide');
+      pauseOverlay.style.display = 'none';
+      substatsDiv.classList.add('hide');
     }
 
-    function moveSurvivalEnemies() {
-      if (isEnemyAdjacentToPlayer()) {
-        gameOver("Enemy too close!");
-        return;
-      }
-
-      let movedEnemies = [];
-      enemies.forEach(enemy => {
-        let bestDx = 0, bestDy = 0, bestDist = Infinity;
-        for (let dx = -1; dx <= 1; dx++) {
-          for (let dy = -1; dy <= 1; dy++) {
-            if (dx === 0 && dy === 0) continue;
-            let nx = (enemy.x + dx + width) % width;
-            let ny = (enemy.y + dy + height) % height;
-
-            let occupied =
-              (nx === player.x && ny === player.y) ||
-              enemies.some(e => e !== enemy && e.x === nx && e.y === ny) ||
-              movedEnemies.some(m => m.x === nx && m.y === ny);
-
-            let dist = Math.abs(nx - player.x) + Math.abs(ny - player.y);
-            if (!occupied && dist < bestDist) {
-              bestDist = dist;
-              bestDx = dx;
-              bestDy = dy;
-            }
+    function startTimer() {
+      clearInterval(interval);
+      timerSpan.textContent = time;
+      interval = setInterval(() => {
+        if (!paused) {
+          time--;
+          if (time <= 0) {
+            time = 0;
+            timerSpan.textContent = 0;
+            clearInterval(interval);
+            running = false;
+            if (currentMode === 'survival') setTimeout(victory, 200);
+            else setTimeout(() => gameOver("Time is up!"), 200);
+          } else {
+            timerSpan.textContent = time;
           }
         }
-        enemy.x = (enemy.x + bestDx + width) % width;
-        enemy.y = (enemy.y + bestDy + height) % height;
-        movedEnemies.push({ x: enemy.x, y: enemy.y });
-      });
-
-      if (isEnemyAdjacentToPlayer()) gameOver("Enemy too close!");
-      else drawGrid();
+      }, 1000);
     }
 
     function generateClassicMode() {
@@ -551,45 +654,36 @@
       const MIN_OBS = 20, MAX_OBS = 30;
       const MIN_ENEMIES = 3, MAX_ENEMIES = 5;
 
-      const obsCount = Math.floor(Math.random() * (MAX_OBS - MIN_OBS + 1)) + MIN_OBS;
+      const obsCount = randInt(MAX_OBS - MIN_OBS + 1) + MIN_OBS;
       let tries = 0;
-      while (obstacles.length < obsCount && tries < 1000) {
+      while (obstacles.length < obsCount && tries < 2000) {
         tries++;
-        const ox = Math.floor(Math.random() * width);
-        const oy = Math.floor(Math.random() * height);
-        if (isNearGoal(ox, oy) || (ox === player.x && oy === player.y) || (ox === goal.x && oy === goal.y)) continue;
+        const ox = randInt(width);
+        const oy = randInt(height);
+        if ((ox === player.x && oy === player.y) || (goal && ox === goal.x && oy === goal.y)) continue;
         obstacles.push({ x: ox, y: oy });
       }
 
-      const enemyCount = Math.floor(Math.random() * (MAX_ENEMIES - MIN_ENEMIES + 1)) + MIN_ENEMIES;
+      const enemyCount = randInt(MAX_ENEMIES - MIN_ENEMIES + 1) + MIN_ENEMIES;
       tries = 0;
-      while (staticEnemies.length < enemyCount && tries < 500) {
+      while (staticEnemies.length < enemyCount && tries < 1500) {
         tries++;
-        const ex = Math.floor(Math.random() * width);
-        const ey = Math.floor(Math.random() * height);
-        if (
-          (ex === player.x && ey === player.y) ||
-          (ex === goal.x && ey === goal.y) ||
-          isObstacle(ex, ey) ||
-          isNearGoal(ex, ey) ||
-          staticEnemies.some(e => e.x === ex && e.y === ey)
-        ) continue;
+        const ex = randInt(width);
+        const ey = randInt(height);
+        if ((ex === player.x && ey === player.y) || (goal && ex === goal.x && ey === goal.y)) continue;
+        if (isObstacle(ex, ey)) continue;
+        if (staticEnemies.some(e => e.x === ex && e.y === ey)) continue;
         staticEnemies.push({ x: ex, y: ey });
       }
 
       const powerupCount = 3;
       tries = 0;
-      while (powerups.length < powerupCount && tries < 1000) {
+      while (powerups.length < powerupCount && tries < 2000) {
         tries++;
-        const px = Math.floor(Math.random() * width);
-        const py = Math.floor(Math.random() * height);
-        if (
-          isNearGoal(px, py) ||
-          (px === player.x && py === player.y) ||
-          (px === goal.x && py === goal.y) ||
-          isObstacle(px, py) ||
-          isStaticEnemy(px, py)
-        ) continue;
+        const px = randInt(width);
+        const py = randInt(height);
+        if ((px === player.x && py === player.y) || (goal && px === goal.x && py === goal.y)) continue;
+        if (isObstacle(px, py) || isStaticEnemy(px, py)) continue;
         powerups.push({ x: px, y: py });
       }
     }
@@ -600,7 +694,6 @@
         mazeGrid[y] = [];
         for (let x = 0; x < width; x++) mazeGrid[y][x] = 0;
       }
-
       function inBounds(x, y) { return x > 0 && x < width - 1 && y > 0 && y < height - 1; }
 
       let stack = [];
@@ -618,17 +711,15 @@
       while (stack.length > 0) {
         let current = stack[stack.length - 1];
         let neighbors = [];
-
         for (let i = 0; i < dirs.length; i++) {
           let nx = current.x + dirs[i].dx;
           let ny = current.y + dirs[i].dy;
           if (inBounds(nx, ny) && mazeGrid[ny][nx] === 0) neighbors.push({ x: nx, y: ny, dir: dirs[i] });
         }
 
-        if (neighbors.length === 0) {
-          stack.pop();
-        } else {
-          let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+        if (neighbors.length === 0) stack.pop();
+        else {
+          let next = neighbors[randInt(neighbors.length)];
           let wx = current.x + next.dir.dx / 2;
           let wy = current.y + next.dir.dy / 2;
           mazeGrid[wy][wx] = 1;
@@ -641,26 +732,71 @@
 
       let bestDist = 0;
       let bestGoal = { x: width - 2, y: height - 2 };
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          if (mazeGrid[y][x] === 1) {
-            let dist = Math.abs(x - player.x) + Math.abs(y - player.y);
-            if (dist > bestDist) { bestDist = dist; bestGoal = { x, y }; }
-          }
+      for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+        if (mazeGrid[y][x] === 1) {
+          let dist = Math.abs(x - player.x) + Math.abs(y - player.y);
+          if (dist > bestDist) { bestDist = dist; bestGoal = { x, y }; }
         }
       }
       goal.x = bestGoal.x;
       goal.y = bestGoal.y;
     }
 
-    const HAZARD_SPAWN_EVERY_MS = 2000;
-    const HAZARD_WARN_MS = 1200;
-    const HAZARD_BOOM_MS = 700;
-    const HAZARD_TICK_MS = 100;
-
-    function getHazardAt(x, y) {
-      return hazards.find(h => h.x === x && h.y === y) || null;
+    function isEnemyAdjacentToPlayer() {
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        let checkX = (player.x + dx + width) % width;
+        let checkY = (player.y + dy + height) % height;
+        if (isSurvivalEnemy(checkX, checkY)) return true;
+      }
+      return false;
     }
+
+    function generateSurvivalEnemies() {
+      enemies = [];
+      let tries = 0;
+      while (enemies.length < 15 && tries < 5000) {
+        tries++;
+        const ex = randInt(width);
+        const ey = randInt(height);
+        if ((ex === player.x && ey === player.y) || enemies.some(e => e.x === ex && e.y === ey)) continue;
+        enemies.push({ x: ex, y: ey });
+      }
+    }
+
+    function moveSurvivalEnemies() {
+      if (isEnemyAdjacentToPlayer()) { gameOver("Enemy too close!"); return; }
+
+      let movedEnemies = [];
+      enemies.forEach(enemy => {
+        let bestDx = 0, bestDy = 0, bestDist = Infinity;
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          let nx = (enemy.x + dx + width) % width;
+          let ny = (enemy.y + dy + height) % height;
+
+          let occupied =
+            (nx === player.x && ny === player.y) ||
+            enemies.some(e => e !== enemy && e.x === nx && e.y === ny) ||
+            movedEnemies.some(m => m.x === nx && m.y === ny);
+
+          let dist = Math.abs(nx - player.x) + Math.abs(ny - player.y);
+          if (!occupied && dist < bestDist) {
+            bestDist = dist;
+            bestDx = dx;
+            bestDy = dy;
+          }
+        }
+        enemy.x = (enemy.x + bestDx + width) % width;
+        enemy.y = (enemy.y + bestDy + height) % height;
+        movedEnemies.push({ x: enemy.x, y: enemy.y });
+      });
+
+      if (isEnemyAdjacentToPlayer()) gameOver("Enemy too close!");
+      else drawGrid();
+    }
+
+    function getHazardAt(x, y) { return hazards.find(h => h.x === x && h.y === y) || null; }
     function isHazardAny(x, y) { return !!getHazardAt(x, y); }
     function isHazardBoom(x, y) {
       const h = getHazardAt(x, y);
@@ -672,26 +808,21 @@
 
     function spawnHazardMarkers() {
       if (!running || !gameStarted || paused) return;
-
-      const count = Math.floor(Math.random() * 130) + 120;
+      const count = randInt(11) + 120;
       let placed = 0;
       let tries = 0;
 
-      while (placed < count && tries < 3000) {
+      while (placed < count && tries < 5000) {
         tries++;
         if (hazards.length >= 60) break;
-
-        const x = Math.floor(Math.random() * width);
-        const y = Math.floor(Math.random() * height);
-
+        const x = randInt(width);
+        const y = randInt(height);
         if (x === player.x && y === player.y) continue;
-        if (x === goal.x && y === goal.y) continue;
+        if (goal && x === goal.x && y === goal.y) continue;
         if (isHazardAny(x, y)) continue;
-
         hazards.push({ x, y, state: 'warn', t: 0 });
         placed++;
       }
-
       drawGrid();
     }
 
@@ -720,18 +851,57 @@
       hazardTickInterval = setInterval(tickHazards, HAZARD_TICK_MS);
     }
 
-    function placeGoal() {
-      if (currentMode === 'maze') return;
+    function resetSnakeMode() {
+      snake = [
+        { x: 15, y: 10 },
+        { x: 14, y: 10 },
+        { x: 13, y: 10 }
+      ];
+      snakeDir = { dx: 1, dy: 0 };
+      snakeNextDir = { dx: 1, dy: 0 };
+      goal = { x: 0, y: 0 };
+      placeGoal();
+    }
 
-      do {
-        goal.x = Math.floor(Math.random() * width);
-        goal.y = Math.floor(Math.random() * height);
-      } while (
-        (currentMode !== 'snake' && (goal.x === player.x && goal.y === player.y)) ||
-        (goal.x === 0) ||
-        (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y))) ||
-        (currentMode === 'danger' && isHazardAny(goal.x, goal.y))
-      );
+    function setSnakeDirection(dx, dy) {
+      if (dx === -snakeDir.dx && dy === -snakeDir.dy) return;
+      snakeNextDir = { dx, dy };
+    }
+
+    function snakeStep() {
+      if (!running || !gameStarted || paused) return;
+      if (currentMode !== 'snake') return;
+
+      snakeDir = { ...snakeNextDir };
+
+      const head = snake[0];
+      const newHead = { x: head.x + snakeDir.dx, y: head.y + snakeDir.dy };
+
+      if (newHead.x < 0 || newHead.x >= width || newHead.y < 0 || newHead.y >= height) {
+        gameOver("Snake hit the wall!");
+        return;
+      }
+      if (snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
+        gameOver("Snake hit itself!");
+        return;
+      }
+
+      const ate = (newHead.x === goal.x && newHead.y === goal.y);
+      snake.unshift(newHead);
+
+      if (ate) {
+        score += 1;
+        scoreSpan.textContent = score;
+        placeGoal();
+      } else {
+        snake.pop();
+      }
+      drawGrid();
+    }
+
+    function startSnakeSystem() {
+      clearInterval(snakeTickInterval);
+      snakeTickInterval = setInterval(snakeStep, 120);
     }
 
     function resetShootoutMode() {
@@ -747,8 +917,8 @@
       if (shootEnemies.length >= SHOOTOUT_MAX_ENEMIES) return;
 
       let tries = 0;
-      while (tries++ < 60) {
-        const x = Math.floor(Math.random() * width);
+      while (tries++ < 80) {
+        const x = randInt(width);
         const y = 0;
         if (shootEnemies.some(e => e.x === x && e.y === y)) continue;
         if (bullets.some(b => b.x === x && b.y === y)) continue;
@@ -767,7 +937,6 @@
       const bx = player.x;
       const by = player.y - 1;
       if (by < 0) return;
-
       if (bullets.length >= 7) return;
 
       bullets.push({ x: bx, y: by });
@@ -810,7 +979,6 @@
         gameOver("Enemy hit you!");
         return;
       }
-
       if (shootEnemies.some(e => e.y >= height)) {
         gameOver("Enemy slipped through!");
         return;
@@ -832,153 +1000,206 @@
       bulletTickInterval = setInterval(tickShootoutBullets, SHOOTOUT_BULLET_TICK_MS);
     }
 
+    // ---------- Mode: Combo (updated with / targets) ----------
+    function comboMultiplier() {
+      return 1 + Math.min(2.5, comboStreak * 0.25);
+    }
+
+    function resetComboUI(show) {
+      if (show) substatsDiv.classList.remove('hide');
+      else substatsDiv.classList.add('hide');
+
+      comboNextSpan.textContent = '/';
+      comboStepLeftSpan.textContent = (comboStepMsLeft > 0) ? (comboStepMsLeft / 1000).toFixed(1) : '--';
+      comboStreakSpan.textContent = comboStreak;
+      comboMultSpan.textContent = 'x' + comboMultiplier().toFixed(2);
+    }
+
+    function spawnComboTargets() {
+      comboTargets = [];
+      let tries = 0;
+
+      for (let idx = 0; idx < COMBO_COUNT; idx++) {
+        let placed = false;
+        while (!placed && tries++ < 6000) {
+          const x = randInt(width);
+          const y = randInt(height);
+          if (x === player.x && y === player.y) continue;
+          if (comboTargets.some(t => t.x === x && t.y === y)) continue;
+          comboTargets.push({ x, y, idx });
+          placed = true;
+        }
+      }
+    }
+
+    function resetComboChain(reasonText = '') {
+      comboIndex = 0;
+      comboTargets = [];
+      comboStepMsLeft = COMBO_STEP_WINDOW_MS;
+      if (reasonText) showPlusTime(player.x, player.y, reasonText, 'warn');
+      spawnComboTargets();
+      resetComboUI(true);
+      drawGrid();
+    }
+
+    function startComboSystem() {
+      clearInterval(comboTickInterval);
+      comboStreak = 0;
+      resetComboChain();
+
+      comboTickInterval = setInterval(() => {
+        if (!running || !gameStarted || paused) return;
+        if (currentMode !== 'combo') return;
+
+        comboStepMsLeft -= COMBO_TICK_MS;
+        if (comboStepMsLeft <= 0) {
+          comboStepMsLeft = 0;
+          comboStreak = 0;
+          resetComboChain('timeout -> chain reset');
+          return;
+        }
+        resetComboUI(true);
+      }, COMBO_TICK_MS);
+    }
+
+    function handleComboPickup(target) {
+      const expectedIdx = comboIndex;
+
+      if (target.idx !== expectedIdx) {
+        comboStreak = 0;
+        resetComboChain('wrong step -> chain reset');
+        return;
+      }
+
+      // correct step
+      comboTargets = comboTargets.filter(t => !(t.x === target.x && t.y === target.y && t.idx === target.idx));
+
+      // points per step
+      const stepBase = 2 + comboIndex; // 2,3,4
+      const gained = Math.round(stepBase * comboMultiplier());
+      score += gained;
+      scoreSpan.textContent = score;
+
+      // time reward per correct step
+      addTime(1);
+      showPlusTime(target.x, target.y, `+${gained} pts, +1 sec`, 'green');
+
+      comboIndex += 1;
+
+      if (comboIndex >= COMBO_COUNT) {
+        // chain completed
+        comboStreak += 1;
+        const bonusTime = 2 + Math.min(4, comboStreak); // 3..6
+        addTime(bonusTime);
+        showPlusTime(player.x, player.y, `chain complete! +${bonusTime} sec`, 'green');
+
+        comboIndex = 0;
+        spawnComboTargets();
+      }
+
+      // refresh step timer to full 5 sec each correct pickup
+      comboStepMsLeft = COMBO_STEP_WINDOW_MS;
+
+      resetComboUI(true);
+      drawGrid();
+    }
+
+    // ---------- Common: Goal placement ----------
+    function placeGoal() {
+      if (currentMode === 'maze') return;
+      if (!goal) goal = { x: 0, y: 0 };
+
+      let tries = 0;
+      do {
+        tries++;
+        goal.x = randInt(width);
+        goal.y = randInt(height);
+      } while (
+        tries < 5000 && (
+          (currentMode !== 'snake' && (goal.x === player.x && goal.y === player.y)) ||
+          (goal.x === 0) ||
+          (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y))) ||
+          (currentMode === 'danger' && isHazardAny(goal.x, goal.y))
+        )
+      );
+    }
+
+    // ---------- Rendering ----------
     function drawGrid() {
       gameDiv.innerHTML = '';
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          const hz = getHazardAt(x, y);
 
-          if (currentMode === 'shootout') {
-            if (player.x === x && player.y === y) {
-              cell.innerHTML = '<span class="black">.</span>';
-            } else if (isShootEnemy(x, y)) {
-              cell.innerHTML = '<span class="black">./</span>';
-            } else if (isBullet(x, y)) {
-              cell.innerHTML = '<span class="cyan">|</span>';
-            } else {
-              cell.innerHTML = '&nbsp;';
-            }
-            gameDiv.appendChild(cell);
-            continue;
-          }
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
 
-          if (currentMode === 'snake') {
-            if (isSnakeHead(x, y)) cell.innerHTML = '<span class="black">./</span>';
-            else if (isSnakeCell(x, y)) cell.innerHTML = '<span class="black">/</span>';
-            else if (goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">./</span>';
-            else cell.innerHTML = '&nbsp;';
-            gameDiv.appendChild(cell);
-            continue;
-          }
+        if (currentMode === 'shootout') {
+          if (player.x === x && player.y === y) cell.innerHTML = '<span class="black">.</span>';
+          else if (isShootEnemy(x, y)) cell.innerHTML = '<span class="black">./</span>';
+          else if (isBullet(x, y)) cell.innerHTML = '<span class="cyan">|</span>';
+          else cell.innerHTML = '&nbsp;';
+          gameDiv.appendChild(cell);
+          continue;
+        }
 
+        if (currentMode === 'snake') {
+          if (isSnakeHead(x, y)) cell.innerHTML = '<span class="black">./</span>';
+          else if (isSnakeCell(x, y)) cell.innerHTML = '<span class="black">/</span>';
+          else if (goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">./</span>';
+          else cell.innerHTML = '&nbsp;';
+          gameDiv.appendChild(cell);
+          continue;
+        }
+
+        if (currentMode === 'maze') {
+          if (player.x === x && player.y === y) cell.innerHTML = '<span class="black">.</span>';
+          else if (goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">/</span>';
+          else if (mazeGrid[y] && mazeGrid[y][x] === 0) cell.innerHTML = '<span class="black">#</span>';
+          else cell.innerHTML = '&nbsp;';
+          gameDiv.appendChild(cell);
+          continue;
+        }
+
+        if (currentMode === 'combo') {
+          const t = getComboTargetAt(x, y);
           if (player.x === x && player.y === y) {
             cell.innerHTML = '<span class="black">.</span>';
-          }
-          else if ((currentMode === 'grad' || currentMode === 'classic' || currentMode === 'maze' || currentMode === 'danger') && goal.x === x && goal.y === y) {
-            cell.innerHTML = '<span class="black">/</span>';
-          }
-          else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) {
-            cell.innerHTML = '<span class="black">/</span>';
-          }
-          else if (currentMode === 'grad' && isStaticEnemy(x, y)) {
-            cell.innerHTML = '<span class="black">,</span>';
-          }
-          else if (currentMode === 'grad' && isObstacle(x, y)) {
-            cell.innerHTML = '<span class="black">-</span>';
-          }
-          else if (currentMode === 'grad' && isPowerup(x, y)) {
-            cell.innerHTML = '<span class="black">*</span>';
-          }
-          else if (currentMode === 'maze') {
-            if (mazeGrid[y] && mazeGrid[y][x] === 0) cell.innerHTML = '<span class="black">#</span>';
-            else cell.innerHTML = '&nbsp;';
-          }
-          else if (currentMode === 'danger' && hz) {
-            if (hz.state === 'warn') cell.innerHTML = '<span class="warn">x</span>';
-            else cell.innerHTML = '<span class="boom">X</span>';
-          }
-          else {
+          } else if (t) {
+            // idx 0..2 => combo1..combo3
+            const cls = (t.idx === 0) ? 'combo1' : (t.idx === 1) ? 'combo2' : 'combo3';
+            // expected one highlight by magenta
+            const color = (t.idx === comboIndex) ? 'magenta' : 'black';
+            cell.innerHTML = `<span class="${color} ${cls}">/</span>`;
+          } else {
             cell.innerHTML = '&nbsp;';
           }
-
           gameDiv.appendChild(cell);
+          continue;
         }
-      }
-    }
 
-    function startTimer() {
-      clearInterval(interval);
-      timerSpan.textContent = time;
-      interval = setInterval(() => {
-        if (!paused) {
-          time--;
-          if (time <= 0) {
-            time = 0;
-            timerSpan.textContent = 0;
-            clearInterval(interval);
-            running = false;
-            if (currentMode === 'survival') setTimeout(victory, 300);
-            else setTimeout(() => gameOver("Time is up!"), 300);
-          } else {
-            timerSpan.textContent = time;
-          }
+        const hz = (currentMode === 'danger') ? (hazards.find(h => h.x === x && h.y === y) || null) : null;
+
+        if (player.x === x && player.y === y) cell.innerHTML = '<span class="black">.</span>';
+        else if ((currentMode === 'grad' || currentMode === 'classic' || currentMode === 'danger') && goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">/</span>';
+        else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) cell.innerHTML = '<span class="black">/</span>';
+        else if (currentMode === 'grad' && isStaticEnemy(x, y)) cell.innerHTML = '<span class="black">,</span>';
+        else if (currentMode === 'grad' && isObstacle(x, y)) cell.innerHTML = '<span class="black">-</span>';
+        else if (currentMode === 'grad' && isPowerup(x, y)) cell.innerHTML = '<span class="black">*</span>';
+        else if (currentMode === 'danger' && hz) {
+          if (hz.state === 'warn') cell.innerHTML = '<span class="warn">x</span>';
+          else cell.innerHTML = '<span class="boom">X</span>';
         }
-      }, 1000);
-    }
+        else cell.innerHTML = '&nbsp;';
 
-    function highscoreKeyForMode(mode) {
-      return mode === 'grad' ? 'gradHighScore' :
-        mode === 'classic' ? 'classicHighScore' :
-        mode === 'maze' ? 'mazeHighScore' :
-        mode === 'danger' ? 'dangerHighScore' :
-        mode === 'snake' ? 'snakeHighScore' :
-        mode === 'shootout' ? 'shootoutHighScore' :
-        'survivalHighScore';
-    }
-
-    function gameOver(msg = "Time is up!") {
-      gameStarted = false;
-      running = false;
-
-      clearAllIntervals();
-
-      const key = highscoreKeyForMode(currentMode);
-      let highscore = localStorage.getItem(key) || 0;
-      if (score > highscore) {
-        localStorage.setItem(key, score);
-        highscore = score;
+        gameDiv.appendChild(cell);
       }
-
-      highscoreSpan.textContent = highscore;
-      highscoreTop.textContent = highscore;
-      gameOverMsg.textContent = msg;
-      finalscore.textContent = score;
-
-      uiDiv.classList.add('hide');
-      gameoverDiv.classList.remove('hide');
-      pauseOverlay.style.display = 'none';
     }
 
-    function victory() {
-      gameStarted = false;
-      running = false;
-
-      clearAllIntervals();
-
-      score = 100;
-      const key = highscoreKeyForMode('survival');
-      let highscore = localStorage.getItem(key) || 0;
-      if (score > highscore) {
-        localStorage.setItem(key, score);
-        highscore = score;
-      }
-      victoryscore.textContent = score;
-      victoryhighscore.textContent = highscore;
-      highscoreTop.textContent = highscore;
-
-      uiDiv.classList.add('hide');
-      victoryDiv.classList.remove('hide');
-      pauseOverlay.style.display = 'none';
-    }
-
+    // ---------- Movement ----------
     function movePlayer(dx, dy) {
       if (!running || !gameStarted || paused) return;
 
       if (currentMode === 'shootout') {
-        const newX = Math.max(0, Math.min(width - 1, player.x + dx));
-        player.x = newX;
+        player.x = clamp(player.x + dx, 0, width - 1);
         drawGrid();
         return;
       }
@@ -996,10 +1217,10 @@
         newY = (newY + height) % height;
       }
 
-      if (currentMode !== 'maze' && currentMode !== 'survival') {
+      // Classic/Grad/Danger: enter goal only from right
+      if (currentMode !== 'maze' && currentMode !== 'survival' && currentMode !== 'combo') {
         const isTryingToEnterGoal = (newX === goal.x && newY === goal.y);
-        const canEnterFromRight = (dx === 1);
-        if (isTryingToEnterGoal && !canEnterFromRight) return;
+        if (isTryingToEnterGoal && dx !== 1) return;
       }
 
       if (currentMode === 'survival' && isSurvivalEnemy(newX, newY)) {
@@ -1009,18 +1230,15 @@
 
       if (currentMode === 'grad') {
         if (isObstacle(newX, newY)) return;
-        if (isStaticEnemy(newX, newY)) {
-          gameOver("You bumped into an opponent (,)");
-          return;
-        }
+        if (isStaticEnemy(newX, newY)) { gameOver("You bumped into an opponent (,)"); return; }
+
         if (isPowerup(newX, newY)) {
           score += 5;
           addTime(3);
-          showPlusTime(newX, newY, './ +3 sec +5 points');
+          showPlusTime(newX, newY, '+5 pts +3 sec', 'green');
           const idx = powerups.findIndex(p => p.x === newX && p.y === newY);
           if (idx !== -1) powerups.splice(idx, 1);
-          player.x = newX;
-          player.y = newY;
+          player.x = newX; player.y = newY;
           scoreSpan.textContent = score;
           drawGrid();
           return;
@@ -1029,12 +1247,19 @@
 
       if (currentMode === 'danger') {
         if (isHazardBoom(newX, newY)) {
-          player.x = newX;
-          player.y = newY;
+          player.x = newX; player.y = newY;
           drawGrid();
           gameOver("You stepped into a blast!");
           return;
         }
+      }
+
+      if (currentMode === 'combo') {
+        player.x = newX; player.y = newY;
+        const t = getComboTargetAt(player.x, player.y);
+        if (t) handleComboPickup(t);
+        else drawGrid();
+        return;
       }
 
       const isMazeMode = currentMode === 'maze';
@@ -1043,19 +1268,18 @@
         : (newX === goal.x && newY === goal.y && dx === 1);
 
       if (currentMode !== 'survival' && goalActivationCondition) {
-        player.x = newX;
-        player.y = newY;
+        player.x = newX; player.y = newY;
 
         score++;
         scoreSpan.textContent = score;
 
         if (currentMode === 'maze') {
           addTime(20);
-          showPlusTime(newX, newY, './ +20 sec');
+          showPlusTime(newX, newY, '+20 sec', 'green');
           generateMaze();
         } else {
           addTime(2);
-          showPlusTime(newX, newY, './ +2 sec');
+          showPlusTime(newX, newY, '+2 sec', 'green');
           placeGoal();
           if (currentMode === 'grad') generateFullMode();
         }
@@ -1076,64 +1300,7 @@
       drawGrid();
     }
 
-    function resetSnakeMode() {
-      snake = [
-        { x: 15, y: 10 },
-        { x: 14, y: 10 },
-        { x: 13, y: 10 }
-      ];
-      snakeDir = { dx: 1, dy: 0 };
-      snakeNextDir = { dx: 1, dy: 0 };
-
-      goal = { x: 0, y: 0 };
-      placeGoal();
-    }
-
-    function setSnakeDirection(dx, dy) {
-      if (dx === -snakeDir.dx && dy === -snakeDir.dy) return;
-      snakeNextDir = { dx, dy };
-    }
-
-    function snakeStep() {
-      if (!running || !gameStarted || paused) return;
-      if (currentMode !== 'snake') return;
-
-      snakeDir = { ...snakeNextDir };
-
-      const head = snake[0];
-      const newHead = { x: head.x + snakeDir.dx, y: head.y + snakeDir.dy };
-
-      if (newHead.x < 0 || newHead.x >= width || newHead.y < 0 || newHead.y >= height) {
-        gameOver("Snake hit the wall!");
-        return;
-      }
-
-      if (snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
-        gameOver("Snake hit itself!");
-        return;
-      }
-
-      const ate = (newHead.x === goal.x && newHead.y === goal.y);
-
-      snake.unshift(newHead);
-
-      if (ate) {
-        score += 1;
-        scoreSpan.textContent = score;
-        placeGoal();
-      } else {
-        snake.pop();
-      }
-
-      drawGrid();
-    }
-
-    function startSnakeSystem() {
-      clearInterval(snakeTickInterval);
-      const speedMs = 120;
-      snakeTickInterval = setInterval(snakeStep, speedMs);
-    }
-
+    // ---------- Start Game ----------
     function startGame(mode) {
       currentMode = mode;
 
@@ -1147,7 +1314,7 @@
       paused = false;
 
       scoreSpan.textContent = '0';
-      timerSpan.textContent = time;
+      timerSpan.textContent = String(time);
 
       clearAllIntervals();
 
@@ -1164,39 +1331,55 @@
       bullets = [];
       shootCooldownMs = 0;
 
+      comboTargets = [];
+      comboIndex = 0;
+      comboStreak = 0;
+      comboStepMsLeft = 0;
+
       if (mode === 'survival') {
+        substatsDiv.classList.add('hide');
         generateSurvivalEnemies();
         survivalEnemiesMoveInterval = setInterval(() => {
           if (running && !paused) moveSurvivalEnemies();
         }, 1000);
       }
       else if (mode === 'maze') {
+        substatsDiv.classList.add('hide');
         player = { x: 1, y: 1 };
         generateMaze();
       }
       else if (mode === 'grad') {
+        substatsDiv.classList.add('hide');
         placeGoal();
         generateFullMode();
       }
       else if (mode === 'classic') {
+        substatsDiv.classList.add('hide');
         placeGoal();
         generateClassicMode();
       }
       else if (mode === 'danger') {
+        substatsDiv.classList.add('hide');
         placeGoal();
         startDangerSystem();
       }
       else if (mode === 'snake') {
+        substatsDiv.classList.add('hide');
         timerSpan.textContent = '--';
         resetSnakeMode();
         startSnakeSystem();
       }
       else if (mode === 'shootout') {
+        substatsDiv.classList.add('hide');
         resetShootoutMode();
         startShootoutSystem();
       }
+      else if (mode === 'combo') {
+        startComboSystem();
+      }
 
       drawGrid();
+
       uiDiv.classList.remove('hide');
       welcomeDiv.classList.add('hide');
       gameoverDiv.classList.add('hide');
@@ -1207,8 +1390,10 @@
       highscoreTop.textContent = localStorage.getItem(key) || 0;
 
       if (mode !== 'snake') startTimer();
+      if (mode === 'combo') resetComboUI(true);
     }
 
+    // ---------- Input ----------
     document.addEventListener('keydown', e => {
       // Shootout: Space = shoot, no pause on Space
       if (currentMode === 'shootout') {
@@ -1217,12 +1402,9 @@
           shoot();
           return;
         }
-
         if (!running || !gameStarted || paused) return;
-
         if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) movePlayer(-1, 0);
         if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) movePlayer(1, 0);
-
         if (['ArrowUp','KeyW','KeyЦ','Enter'].includes(e.code)) shoot();
         return;
       }
@@ -1251,8 +1433,10 @@
       if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) movePlayer(1, 0);
     });
 
+    // ---------- Buttons ----------
     gradBtn.onclick = () => startGame('grad');
     classicBtn.onclick = () => startGame('classic');
+    comboBtn.onclick = () => startGame('combo');
     mazeBtn.onclick = () => startGame('maze');
     survivalBtn.onclick = () => startGame('survival');
     dangerBtn.onclick = () => startGame('danger');
@@ -1265,6 +1449,9 @@
     menuBtn.onclick = showMenu;
     menuBtnGameover.onclick = showMenu;
     menuBtnVictory.onclick = showMenu;
+
+    // boot
+    showMenu();
   </script>
 </body>
 </html>
