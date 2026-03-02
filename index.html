@@ -179,8 +179,8 @@
     .hide { display: none !important; }
 
     .combo1 { opacity: 1; transform: scale(1.0); }
-    .combo2 { opacity: 0.5; transform: scale(1.25); } 
-    .combo3 { opacity: 0.25; transform: scale(1.5); } 
+    .combo2 { opacity: 0.5; transform: scale(1.25); }
+    .combo3 { opacity: 0.25; transform: scale(1.5); }
 
     .float-text {
       position: absolute;
@@ -314,6 +314,26 @@
             • Space/Enter shoot (no pause on Space)
           </div>
         </div>
+
+        <div class="mode-card">
+          <button class="big-btn" id="kothBtn">./ GRAD KING OF THE HILL</button>
+          <div class="mode-desc">
+            Round loop: free field → 3 sec reach safe zone → lethal field.<br>
+            • If outside safe zone during lethal = lose<br>
+            • +1 point per survived round<br>
+            • No timer<br>
+            • SPACE pause
+          </div>
+        </div>
+
+        <div class="mode-card">
+          <button class="big-btn" id="nobackBtn">./ NO BACKTRACK</button>
+          <div class="mode-desc">
+            You cannot step on last N visited cells.<br>
+            • Stepping back = Game Over<br>
+            • SPACE pause
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -387,14 +407,17 @@
     const SHOOTOUT_BULLET_TICK_MS = 60;
     const SHOOTOUT_COOLDOWN_MS = 140;
 
-    const HAZARD_SPAWN_EVERY_MS = 2000;
-    const HAZARD_WARN_MS = 1200;
-    const HAZARD_BOOM_MS = 700;
-    const HAZARD_TICK_MS = 100;
-
     const COMBO_COUNT = 3;
-    const COMBO_STEP_WINDOW_MS = 5000;  
+    const COMBO_STEP_WINDOW_MS = 5000;
     const COMBO_TICK_MS = 100;
+
+    const KOTH_ZONE_SIZE = 3;
+    const KOTH_GRACE_MS = 3000;    
+    const KOTH_LETHAL_MS = 3500;     
+    const KOTH_TICK_MS = 100;
+
+    const NOBACKTRACK_LAST_STEPS = 35;
+    const NOBACKTRACK_SHOW_TRAIL = true;
 
     const gameContainer = document.getElementById('gameContainer');
     const gameDiv = document.getElementById('game');
@@ -423,6 +446,8 @@
     const dangerBtn = document.getElementById('dangerBtn');
     const snakeBtn = document.getElementById('snakeBtn');
     const shootoutBtn = document.getElementById('shootoutBtn');
+    const kothBtn = document.getElementById('kothBtn');
+    const nobackBtn = document.getElementById('nobackBtn');
 
     const restartBtn = document.getElementById('restartBtn');
     const restartBtnVictory = document.getElementById('restartBtnVictory');
@@ -438,13 +463,8 @@
     let interval = null, running = false, gameStarted = false, paused = false, currentMode = '';
 
     let enemies = [], survivalEnemiesMoveInterval = null;
-
     let obstacles = [], powerups = [], staticEnemies = [];
-
     let mazeGrid = [];
-
-    let hazards = [];
-    let hazardSpawnInterval = null, hazardTickInterval = null;
 
     let snake = [];
     let snakeDir = { dx: 1, dy: 0 };
@@ -456,68 +476,64 @@
     let enemySpawnInterval = null, enemyFallInterval = null, bulletTickInterval = null;
     let shootCooldownMs = 0;
 
-    let comboTargets = []; 
-    let comboIndex = 0;    
-    let comboStreak = 0; 
+    let comboTargets = [];
+    let comboIndex = 0;
+    let comboStreak = 0;
     let comboStepMsLeft = 0;
     let comboTickInterval = null;
 
-    function getInitialTime(mode) {
-      if (mode === 'maze') return 60;
-      if (mode === 'shootout') return 60;
-      if (mode === 'combo') return 60;
-      return 30;
+    let kothZone = { x: 0, y: 0 };
+    let kothPhase = 'grace';
+    let kothPhaseMsLeft = KOTH_GRACE_MS;
+    let kothTickInterval = null;
+
+    let trailQueue = [];
+    let trailSet = new Set();
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function randInt(n) { return Math.floor(Math.random() * n); }
+
+    function posKey(x, y) { return `${x},${y}`; }
+    function trailClear() { trailQueue = []; trailSet = new Set(); }
+    function isTrailCell(x, y) { return trailSet.has(posKey(x, y)); }
+    function trailPush(x, y) {
+      const k = posKey(x, y);
+      if (trailQueue.length) {
+        const last = trailQueue[trailQueue.length - 1];
+        if (last.x === x && last.y === y) return;
+      }
+      trailQueue.push({ x, y });
+      trailSet.add(k);
+
+      while (trailQueue.length > NOBACKTRACK_LAST_STEPS) {
+        const removed = trailQueue.shift();
+        const rk = posKey(removed.x, removed.y);
+        if (!trailQueue.some(p => p.x === removed.x && p.y === removed.y)) trailSet.delete(rk);
+      }
+    }
+
+    function highscoreKeyForMode(mode) {
+      return mode === 'grad' ? 'gradHighScore' :
+        mode === 'classic' ? 'classicHighScore' :
+        mode === 'combo' ? 'comboHighScore' :
+        mode === 'maze' ? 'mazeHighScore' :
+        mode === 'danger' ? 'dangerHighScore' :
+        mode === 'snake' ? 'snakeHighScore' :
+        mode === 'shootout' ? 'shootoutHighScore' :
+        mode === 'koth' ? 'kothHighScore' :
+        mode === 'nobacktrack' ? 'nobacktrackHighScore' :
+        'survivalHighScore';
     }
 
     function clearAllIntervals() {
       clearInterval(interval);
       clearInterval(survivalEnemiesMoveInterval);
-      clearInterval(hazardSpawnInterval);
-      clearInterval(hazardTickInterval);
       clearInterval(snakeTickInterval);
-
       clearInterval(enemySpawnInterval);
       clearInterval(enemyFallInterval);
       clearInterval(bulletTickInterval);
-
       clearInterval(comboTickInterval);
-    }
-
-    function showMenu() {
-      gameStarted = false;
-      running = false;
-      paused = false;
-
-      clearAllIntervals();
-
-      uiDiv.classList.add('hide');
-      welcomeDiv.classList.remove('hide');
-      gameoverDiv.classList.add('hide');
-      victoryDiv.classList.add('hide');
-      pauseOverlay.style.display = 'none';
-      gameDiv.innerHTML = '';
-
-      hazards = [];
-      enemies = [];
-      obstacles = [];
-      staticEnemies = [];
-      powerups = [];
-      mazeGrid = [];
-
-      snake = [];
-      snakeDir = { dx: 1, dy: 0 };
-      snakeNextDir = { dx: 1, dy: 0 };
-
-      shootEnemies = [];
-      bullets = [];
-      shootCooldownMs = 0;
-
-      comboTargets = [];
-      comboIndex = 0;
-      comboStreak = 0;
-      comboStepMsLeft = 0;
-
-      substatsDiv.classList.add('hide');
+      clearInterval(kothTickInterval);
     }
 
     function showPlusTime(x, y, text, tint = 'green') {
@@ -537,39 +553,6 @@
       setTimeout(() => { if (float.parentNode) float.parentNode.removeChild(float); }, 1300);
     }
 
-    function addTime(seconds) {
-      time += seconds;
-      if (time < 0) time = 0;
-      timerSpan.textContent = time;
-    }
-
-    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-    function randInt(n) { return Math.floor(Math.random() * n); }
-
-    function isObstacle(x, y) { return obstacles.some(o => o.x === x && o.y === y); }
-    function isStaticEnemy(x, y) { return staticEnemies.some(e => e.x === x && e.y === y); }
-    function isPowerup(x, y) { return powerups.some(p => p.x === x && p.y === y); }
-    function isSurvivalEnemy(x, y) { return enemies.some(e => e.x === x && e.y === y); }
-
-    function isSnakeCell(x, y) { return snake.some(s => s.x === x && s.y === y); }
-    function isSnakeHead(x, y) { return snake.length && snake[0].x === x && snake[0].y === y; }
-
-    function isShootEnemy(x, y) { return shootEnemies.some(e => e.x === x && e.y === y); }
-    function isBullet(x, y) { return bullets.some(b => b.x === x && b.y === y); }
-
-    function getComboTargetAt(x, y) { return comboTargets.find(t => t.x === x && t.y === y) || null; }
-
-    function highscoreKeyForMode(mode) {
-      return mode === 'grad' ? 'gradHighScore' :
-        mode === 'classic' ? 'classicHighScore' :
-        mode === 'combo' ? 'comboHighScore' :
-        mode === 'maze' ? 'mazeHighScore' :
-        mode === 'danger' ? 'dangerHighScore' :
-        mode === 'snake' ? 'snakeHighScore' :
-        mode === 'shootout' ? 'shootoutHighScore' :
-        'survivalHighScore';
-    }
-
     function gameOver(msg = "Time is up!") {
       gameStarted = false;
       running = false;
@@ -578,10 +561,7 @@
 
       const key = highscoreKeyForMode(currentMode);
       let highscore = Number(localStorage.getItem(key) || 0);
-      if (score > highscore) {
-        localStorage.setItem(key, String(score));
-        highscore = score;
-      }
+      if (score > highscore) { localStorage.setItem(key, String(score)); highscore = score; }
 
       highscoreSpan.textContent = highscore;
       highscoreTop.textContent = highscore;
@@ -595,28 +575,35 @@
       substatsDiv.classList.add('hide');
     }
 
-    function victory() {
+    function showMenu() {
       gameStarted = false;
       running = false;
+      paused = false;
 
       clearAllIntervals();
 
-      score = 100;
-      const key = highscoreKeyForMode('survival');
-      let highscore = Number(localStorage.getItem(key) || 0);
-      if (score > highscore) {
-        localStorage.setItem(key, String(score));
-        highscore = score;
-      }
-
-      victoryscore.textContent = score;
-      victoryhighscore.textContent = highscore;
-      highscoreTop.textContent = highscore;
-
       uiDiv.classList.add('hide');
-      victoryDiv.classList.remove('hide');
+      welcomeDiv.classList.remove('hide');
       gameoverDiv.classList.add('hide');
+      victoryDiv.classList.add('hide');
       pauseOverlay.style.display = 'none';
+      gameDiv.innerHTML = '';
+
+      enemies = [];
+      obstacles = [];
+      staticEnemies = [];
+      powerups = [];
+      mazeGrid = [];
+      snake = [];
+      shootEnemies = [];
+      bullets = [];
+      comboTargets = [];
+
+      kothZone = { x: 0, y: 0 };
+      kothPhase = 'grace';
+      kothPhaseMsLeft = KOTH_GRACE_MS;
+
+      trailClear();
       substatsDiv.classList.add('hide');
     }
 
@@ -631,8 +618,7 @@
             timerSpan.textContent = 0;
             clearInterval(interval);
             running = false;
-            if (currentMode === 'survival') setTimeout(victory, 200);
-            else setTimeout(() => gameOver("Time is up!"), 200);
+            setTimeout(() => gameOver("Time is up!"), 200);
           } else {
             timerSpan.textContent = time;
           }
@@ -640,370 +626,70 @@
       }, 1000);
     }
 
-    function generateClassicMode() {
-      obstacles = [];
-      staticEnemies = [];
-      powerups = [];
+    function isInKothZone(x, y) {
+      return (
+        x >= kothZone.x && x < kothZone.x + KOTH_ZONE_SIZE &&
+        y >= kothZone.y && y < kothZone.y + KOTH_ZONE_SIZE
+      );
     }
 
-    function generateFullMode() {
-      obstacles = [];
-      staticEnemies = [];
-      powerups = [];
-
-      const MIN_OBS = 20, MAX_OBS = 30;
-      const MIN_ENEMIES = 3, MAX_ENEMIES = 5;
-
-      const obsCount = randInt(MAX_OBS - MIN_OBS + 1) + MIN_OBS;
-      let tries = 0;
-      while (obstacles.length < obsCount && tries < 2000) {
-        tries++;
-        const ox = randInt(width);
-        const oy = randInt(height);
-        if ((ox === player.x && oy === player.y) || (goal && ox === goal.x && oy === goal.y)) continue;
-        obstacles.push({ x: ox, y: oy });
-      }
-
-      const enemyCount = randInt(MAX_ENEMIES - MIN_ENEMIES + 1) + MIN_ENEMIES;
-      tries = 0;
-      while (staticEnemies.length < enemyCount && tries < 1500) {
-        tries++;
-        const ex = randInt(width);
-        const ey = randInt(height);
-        if ((ex === player.x && ey === player.y) || (goal && ex === goal.x && ey === goal.y)) continue;
-        if (isObstacle(ex, ey)) continue;
-        if (staticEnemies.some(e => e.x === ex && e.y === ey)) continue;
-        staticEnemies.push({ x: ex, y: ey });
-      }
-
-      const powerupCount = 3;
-      tries = 0;
-      while (powerups.length < powerupCount && tries < 2000) {
-        tries++;
-        const px = randInt(width);
-        const py = randInt(height);
-        if ((px === player.x && py === player.y) || (goal && px === goal.x && py === goal.y)) continue;
-        if (isObstacle(px, py) || isStaticEnemy(px, py)) continue;
-        powerups.push({ x: px, y: py });
-      }
+    function relocateKothZone() {
+      const maxX = width - KOTH_ZONE_SIZE;
+      const maxY = height - KOTH_ZONE_SIZE;
+      kothZone.x = randInt(maxX + 1);
+      kothZone.y = randInt(maxY + 1);
     }
 
-    function generateMaze() {
-      mazeGrid = [];
-      for (let y = 0; y < height; y++) {
-        mazeGrid[y] = [];
-        for (let x = 0; x < width; x++) mazeGrid[y][x] = 0;
-      }
-      function inBounds(x, y) { return x > 0 && x < width - 1 && y > 0 && y < height - 1; }
+    function startKothSystem() {
+      relocateKothZone();
+      kothPhase = 'grace';
+      kothPhaseMsLeft = KOTH_GRACE_MS;
 
-      let stack = [];
-      let startX = 1, startY = 1;
-      mazeGrid[startY][startX] = 1;
-      stack.push({ x: startX, y: startY });
+      clearInterval(kothTickInterval);
+      kothTickInterval = setInterval(() => {
+        if (!running || !gameStarted || paused) return;
+        if (currentMode !== 'koth') return;
 
-      const dirs = [
-        { dx: 0, dy: -2 },
-        { dx: 2, dy: 0 },
-        { dx: 0, dy: 2 },
-        { dx: -2, dy: 0 }
-      ];
+        kothPhaseMsLeft -= KOTH_TICK_MS;
 
-      while (stack.length > 0) {
-        let current = stack[stack.length - 1];
-        let neighbors = [];
-        for (let i = 0; i < dirs.length; i++) {
-          let nx = current.x + dirs[i].dx;
-          let ny = current.y + dirs[i].dy;
-          if (inBounds(nx, ny) && mazeGrid[ny][nx] === 0) neighbors.push({ x: nx, y: ny, dir: dirs[i] });
-        }
-
-        if (neighbors.length === 0) stack.pop();
-        else {
-          let next = neighbors[randInt(neighbors.length)];
-          let wx = current.x + next.dir.dx / 2;
-          let wy = current.y + next.dir.dy / 2;
-          mazeGrid[wy][wx] = 1;
-          mazeGrid[next.y][next.x] = 1;
-          stack.push({ x: next.x, y: next.y });
-        }
-      }
-
-      mazeGrid[player.y][player.x] = 1;
-
-      let bestDist = 0;
-      let bestGoal = { x: width - 2, y: height - 2 };
-      for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
-        if (mazeGrid[y][x] === 1) {
-          let dist = Math.abs(x - player.x) + Math.abs(y - player.y);
-          if (dist > bestDist) { bestDist = dist; bestGoal = { x, y }; }
-        }
-      }
-      goal.x = bestGoal.x;
-      goal.y = bestGoal.y;
-    }
-
-    function isEnemyAdjacentToPlayer() {
-      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        let checkX = (player.x + dx + width) % width;
-        let checkY = (player.y + dy + height) % height;
-        if (isSurvivalEnemy(checkX, checkY)) return true;
-      }
-      return false;
-    }
-
-    function generateSurvivalEnemies() {
-      enemies = [];
-      let tries = 0;
-      while (enemies.length < 15 && tries < 5000) {
-        tries++;
-        const ex = randInt(width);
-        const ey = randInt(height);
-        if ((ex === player.x && ey === player.y) || enemies.some(e => e.x === ex && e.y === ey)) continue;
-        enemies.push({ x: ex, y: ey });
-      }
-    }
-
-    function moveSurvivalEnemies() {
-      if (isEnemyAdjacentToPlayer()) { gameOver("Enemy too close!"); return; }
-
-      let movedEnemies = [];
-      enemies.forEach(enemy => {
-        let bestDx = 0, bestDy = 0, bestDist = Infinity;
-        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-          if (dx === 0 && dy === 0) continue;
-          let nx = (enemy.x + dx + width) % width;
-          let ny = (enemy.y + dy + height) % height;
-
-          let occupied =
-            (nx === player.x && ny === player.y) ||
-            enemies.some(e => e !== enemy && e.x === nx && e.y === ny) ||
-            movedEnemies.some(m => m.x === nx && m.y === ny);
-
-          let dist = Math.abs(nx - player.x) + Math.abs(ny - player.y);
-          if (!occupied && dist < bestDist) {
-            bestDist = dist;
-            bestDx = dx;
-            bestDy = dy;
+        if (kothPhase === 'grace') {
+          if (kothPhaseMsLeft <= 0) {
+            kothPhase = 'lethal';
+            kothPhaseMsLeft = KOTH_LETHAL_MS;
+            showPlusTime(player.x, player.y, 'LETHAL!', 'boom');
+            drawGrid();
+          } else {
+            drawGrid();
           }
+          return;
         }
-        enemy.x = (enemy.x + bestDx + width) % width;
-        enemy.y = (enemy.y + bestDy + height) % height;
-        movedEnemies.push({ x: enemy.x, y: enemy.y });
-      });
 
-      if (isEnemyAdjacentToPlayer()) gameOver("Enemy too close!");
-      else drawGrid();
-    }
+        if (kothPhase === 'lethal') {
+          if (!isInKothZone(player.x, player.y)) {
+            gameOver("Out of safe zone!");
+            return;
+          }
 
-    function getHazardAt(x, y) { return hazards.find(h => h.x === x && h.y === y) || null; }
-    function isHazardAny(x, y) { return !!getHazardAt(x, y); }
-    function isHazardBoom(x, y) {
-      const h = getHazardAt(x, y);
-      return !!h && h.state === 'boom';
-    }
-    function cleanupHazards() {
-      hazards = hazards.filter(h => h.t < (HAZARD_WARN_MS + HAZARD_BOOM_MS));
-    }
+          if (kothPhaseMsLeft <= 0) {
+            score += 1;
+            scoreSpan.textContent = score;
+            showPlusTime(player.x, player.y, '+1 round', 'green');
 
-    function spawnHazardMarkers() {
-      if (!running || !gameStarted || paused) return;
-      const count = randInt(11) + 120;
-      let placed = 0;
-      let tries = 0;
+            relocateKothZone();
+            kothPhase = 'grace';
+            kothPhaseMsLeft = KOTH_GRACE_MS;
+            drawGrid();
+            return;
+          }
 
-      while (placed < count && tries < 5000) {
-        tries++;
-        if (hazards.length >= 60) break;
-        const x = randInt(width);
-        const y = randInt(height);
-        if (x === player.x && y === player.y) continue;
-        if (goal && x === goal.x && y === goal.y) continue;
-        if (isHazardAny(x, y)) continue;
-        hazards.push({ x, y, state: 'warn', t: 0 });
-        placed++;
-      }
-      drawGrid();
-    }
-
-    function tickHazards() {
-      if (!running || !gameStarted || paused) return;
-
-      hazards.forEach(h => {
-        h.t += HAZARD_TICK_MS;
-        if (h.state === 'warn' && h.t >= HAZARD_WARN_MS) h.state = 'boom';
-      });
-
-      if (currentMode === 'danger' && isHazardBoom(player.x, player.y)) {
-        gameOver("You got blasted!");
-        return;
-      }
-
-      cleanupHazards();
-      drawGrid();
-    }
-
-    function startDangerSystem() {
-      hazards = [];
-      clearInterval(hazardSpawnInterval);
-      clearInterval(hazardTickInterval);
-      hazardSpawnInterval = setInterval(spawnHazardMarkers, HAZARD_SPAWN_EVERY_MS);
-      hazardTickInterval = setInterval(tickHazards, HAZARD_TICK_MS);
-    }
-
-    function resetSnakeMode() {
-      snake = [
-        { x: 15, y: 10 },
-        { x: 14, y: 10 },
-        { x: 13, y: 10 }
-      ];
-      snakeDir = { dx: 1, dy: 0 };
-      snakeNextDir = { dx: 1, dy: 0 };
-      goal = { x: 0, y: 0 };
-      placeGoal();
-    }
-
-    function setSnakeDirection(dx, dy) {
-      if (dx === -snakeDir.dx && dy === -snakeDir.dy) return;
-      snakeNextDir = { dx, dy };
-    }
-
-    function snakeStep() {
-      if (!running || !gameStarted || paused) return;
-      if (currentMode !== 'snake') return;
-
-      snakeDir = { ...snakeNextDir };
-
-      const head = snake[0];
-      const newHead = { x: head.x + snakeDir.dx, y: head.y + snakeDir.dy };
-
-      if (newHead.x < 0 || newHead.x >= width || newHead.y < 0 || newHead.y >= height) {
-        gameOver("Snake hit the wall!");
-        return;
-      }
-      if (snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
-        gameOver("Snake hit itself!");
-        return;
-      }
-
-      const ate = (newHead.x === goal.x && newHead.y === goal.y);
-      snake.unshift(newHead);
-
-      if (ate) {
-        score += 1;
-        scoreSpan.textContent = score;
-        placeGoal();
-      } else {
-        snake.pop();
-      }
-      drawGrid();
-    }
-
-    function startSnakeSystem() {
-      clearInterval(snakeTickInterval);
-      snakeTickInterval = setInterval(snakeStep, 120);
-    }
-
-    function resetShootoutMode() {
-      shootEnemies = [];
-      bullets = [];
-      shootCooldownMs = 0;
-      player = { x: Math.floor(width / 2), y: height - 1 };
-    }
-
-    function spawnShootEnemy() {
-      if (!running || !gameStarted || paused) return;
-      if (currentMode !== 'shootout') return;
-      if (shootEnemies.length >= SHOOTOUT_MAX_ENEMIES) return;
-
-      let tries = 0;
-      while (tries++ < 80) {
-        const x = randInt(width);
-        const y = 0;
-        if (shootEnemies.some(e => e.x === x && e.y === y)) continue;
-        if (bullets.some(b => b.x === x && b.y === y)) continue;
-        shootEnemies.push({ x, y });
-        break;
-      }
-      drawGrid();
-    }
-
-    function shoot() {
-      if (!running || !gameStarted || paused) return;
-      if (currentMode !== 'shootout') return;
-      if (shootCooldownMs > 0) return;
-      shootCooldownMs = SHOOTOUT_COOLDOWN_MS;
-
-      const bx = player.x;
-      const by = player.y - 1;
-      if (by < 0) return;
-      if (bullets.length >= 7) return;
-
-      bullets.push({ x: bx, y: by });
-      drawGrid();
-    }
-
-    function resolveBulletEnemyCollisions() {
-      for (let bi = bullets.length - 1; bi >= 0; bi--) {
-        const b = bullets[bi];
-        const hitIdx = shootEnemies.findIndex(e => e.x === b.x && e.y === b.y);
-        if (hitIdx !== -1) {
-          shootEnemies.splice(hitIdx, 1);
-          bullets.splice(bi, 1);
-          score += 1;
-          scoreSpan.textContent = score;
+          drawGrid();
         }
-      }
+      }, KOTH_TICK_MS);
     }
 
-    function tickShootoutBullets() {
-      if (!running || !gameStarted || paused) return;
-      if (currentMode !== 'shootout') return;
+    function getComboTargetAt(x, y) { return comboTargets.find(t => t.x === x && t.y === y) || null; }
 
-      if (shootCooldownMs > 0) shootCooldownMs -= SHOOTOUT_BULLET_TICK_MS;
-
-      bullets.forEach(b => b.y -= 1);
-      bullets = bullets.filter(b => b.y >= 0);
-
-      resolveBulletEnemyCollisions();
-      drawGrid();
-    }
-
-    function tickShootoutEnemiesFall() {
-      if (!running || !gameStarted || paused) return;
-      if (currentMode !== 'shootout') return;
-
-      shootEnemies.forEach(e => e.y += 1);
-
-      if (shootEnemies.some(e => e.x === player.x && e.y === player.y)) {
-        gameOver("Enemy hit you!");
-        return;
-      }
-      if (shootEnemies.some(e => e.y >= height)) {
-        gameOver("Enemy slipped through!");
-        return;
-      }
-
-      resolveBulletEnemyCollisions();
-      shootEnemies = shootEnemies.filter(e => e.y >= 0 && e.y < height);
-
-      drawGrid();
-    }
-
-    function startShootoutSystem() {
-      clearInterval(enemySpawnInterval);
-      clearInterval(enemyFallInterval);
-      clearInterval(bulletTickInterval);
-
-      enemySpawnInterval = setInterval(spawnShootEnemy, SHOOTOUT_SPAWN_EVERY_MS);
-      enemyFallInterval = setInterval(tickShootoutEnemiesFall, SHOOTOUT_ENEMY_FALL_EVERY_MS);
-      bulletTickInterval = setInterval(tickShootoutBullets, SHOOTOUT_BULLET_TICK_MS);
-    }
-
-    // ---------- Mode: Combo (updated with / targets) ----------
-    function comboMultiplier() {
-      return 1 + Math.min(2.5, comboStreak * 0.25);
-    }
+    function comboMultiplier() { return 1 + Math.min(2.5, comboStreak * 0.25); }
 
     function resetComboUI(show) {
       if (show) substatsDiv.classList.remove('hide');
@@ -1018,7 +704,6 @@
     function spawnComboTargets() {
       comboTargets = [];
       let tries = 0;
-
       for (let idx = 0; idx < COMBO_COUNT; idx++) {
         let placed = false;
         while (!placed && tries++ < 6000) {
@@ -1046,11 +731,9 @@
       clearInterval(comboTickInterval);
       comboStreak = 0;
       resetComboChain();
-
       comboTickInterval = setInterval(() => {
         if (!running || !gameStarted || paused) return;
         if (currentMode !== 'combo') return;
-
         comboStepMsLeft -= COMBO_TICK_MS;
         if (comboStepMsLeft <= 0) {
           comboStepMsLeft = 0;
@@ -1064,67 +747,50 @@
 
     function handleComboPickup(target) {
       const expectedIdx = comboIndex;
-
       if (target.idx !== expectedIdx) {
         comboStreak = 0;
         resetComboChain('wrong step -> chain reset');
         return;
       }
 
-      // correct step
       comboTargets = comboTargets.filter(t => !(t.x === target.x && t.y === target.y && t.idx === target.idx));
-
-      // points per step
-      const stepBase = 2 + comboIndex; // 2,3,4
+      const stepBase = 2 + comboIndex;
       const gained = Math.round(stepBase * comboMultiplier());
       score += gained;
       scoreSpan.textContent = score;
 
-      // time reward per correct step
-      addTime(1);
+      time += 1;
+      timerSpan.textContent = time;
       showPlusTime(target.x, target.y, `+${gained} pts, +1 sec`, 'green');
 
       comboIndex += 1;
 
       if (comboIndex >= COMBO_COUNT) {
-        // chain completed
         comboStreak += 1;
-        const bonusTime = 2 + Math.min(4, comboStreak); // 3..6
-        addTime(bonusTime);
+        const bonusTime = 2 + Math.min(4, comboStreak);
+        time += bonusTime;
+        timerSpan.textContent = time;
         showPlusTime(player.x, player.y, `chain complete! +${bonusTime} sec`, 'green');
-
         comboIndex = 0;
         spawnComboTargets();
       }
 
-      // refresh step timer to full 5 sec each correct pickup
       comboStepMsLeft = COMBO_STEP_WINDOW_MS;
-
       resetComboUI(true);
       drawGrid();
     }
 
-    // ---------- Common: Goal placement ----------
     function placeGoal() {
-      if (currentMode === 'maze') return;
       if (!goal) goal = { x: 0, y: 0 };
-
       let tries = 0;
       do {
         tries++;
         goal.x = randInt(width);
         goal.y = randInt(height);
-      } while (
-        tries < 5000 && (
-          (currentMode !== 'snake' && (goal.x === player.x && goal.y === player.y)) ||
-          (goal.x === 0) ||
-          (currentMode === 'grad' && (isObstacle(goal.x, goal.y) || isStaticEnemy(goal.x, goal.y) || isPowerup(goal.x, goal.y))) ||
-          (currentMode === 'danger' && isHazardAny(goal.x, goal.y))
-        )
-      );
+      } while (tries < 5000 && (goal.x === player.x && goal.y === player.y) );
     }
 
-    // ---------- Rendering ----------
+    // --------- Rendering ---------
     function drawGrid() {
       gameDiv.innerHTML = '';
 
@@ -1132,28 +798,29 @@
         const cell = document.createElement('div');
         cell.className = 'cell';
 
-        if (currentMode === 'shootout') {
-          if (player.x === x && player.y === y) cell.innerHTML = '<span class="black">.</span>';
-          else if (isShootEnemy(x, y)) cell.innerHTML = '<span class="black">./</span>';
-          else if (isBullet(x, y)) cell.innerHTML = '<span class="cyan">|</span>';
-          else cell.innerHTML = '&nbsp;';
+        if (currentMode === 'koth') {
+          if (player.x === x && player.y === y) {
+            cell.innerHTML = '<span class="black">.</span>';
+          } else if (isInKothZone(x, y)) {
+            cell.innerHTML = '<span class="green">H</span>';
+          } else {
+            // grace: free field is empty; lethal: red X everywhere
+            if (kothPhase === 'lethal') cell.innerHTML = '<span class="boom">X</span>';
+            else cell.innerHTML = '&nbsp;';
+          }
+
+          // show countdown in timer slot as convenience
+          const secLeft = Math.max(0, Math.ceil(kothPhaseMsLeft / 1000));
+          timerSpan.textContent = (kothPhase === 'grace') ? String(secLeft) : String(secLeft);
+
           gameDiv.appendChild(cell);
           continue;
         }
 
-        if (currentMode === 'snake') {
-          if (isSnakeHead(x, y)) cell.innerHTML = '<span class="black">./</span>';
-          else if (isSnakeCell(x, y)) cell.innerHTML = '<span class="black">/</span>';
-          else if (goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">./</span>';
-          else cell.innerHTML = '&nbsp;';
-          gameDiv.appendChild(cell);
-          continue;
-        }
-
-        if (currentMode === 'maze') {
+        if (currentMode === 'nobacktrack') {
           if (player.x === x && player.y === y) cell.innerHTML = '<span class="black">.</span>';
+          else if (NOBACKTRACK_SHOW_TRAIL && isTrailCell(x, y)) cell.innerHTML = '<span class="warn">·</span>';
           else if (goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">/</span>';
-          else if (mazeGrid[y] && mazeGrid[y][x] === 0) cell.innerHTML = '<span class="black">#</span>';
           else cell.innerHTML = '&nbsp;';
           gameDiv.appendChild(cell);
           continue;
@@ -1161,221 +828,102 @@
 
         if (currentMode === 'combo') {
           const t = getComboTargetAt(x, y);
-          if (player.x === x && player.y === y) {
-            cell.innerHTML = '<span class="black">.</span>';
-          } else if (t) {
-            // idx 0..2 => combo1..combo3
+          if (player.x === x && player.y === y) cell.innerHTML = '<span class="black">.</span>';
+          else if (t) {
             const cls = (t.idx === 0) ? 'combo1' : (t.idx === 1) ? 'combo2' : 'combo3';
-            // expected one highlight by magenta
             const color = (t.idx === comboIndex) ? 'magenta' : 'black';
             cell.innerHTML = `<span class="${color} ${cls}">/</span>`;
-          } else {
-            cell.innerHTML = '&nbsp;';
-          }
+          } else cell.innerHTML = '&nbsp;';
           gameDiv.appendChild(cell);
           continue;
         }
 
-        const hz = (currentMode === 'danger') ? (hazards.find(h => h.x === x && h.y === y) || null) : null;
-
+        // fallback (simple)
         if (player.x === x && player.y === y) cell.innerHTML = '<span class="black">.</span>';
-        else if ((currentMode === 'grad' || currentMode === 'classic' || currentMode === 'danger') && goal.x === x && goal.y === y) cell.innerHTML = '<span class="black">/</span>';
-        else if (currentMode === 'survival' && isSurvivalEnemy(x, y)) cell.innerHTML = '<span class="black">/</span>';
-        else if (currentMode === 'grad' && isStaticEnemy(x, y)) cell.innerHTML = '<span class="black">,</span>';
-        else if (currentMode === 'grad' && isObstacle(x, y)) cell.innerHTML = '<span class="black">-</span>';
-        else if (currentMode === 'grad' && isPowerup(x, y)) cell.innerHTML = '<span class="black">*</span>';
-        else if (currentMode === 'danger' && hz) {
-          if (hz.state === 'warn') cell.innerHTML = '<span class="warn">x</span>';
-          else cell.innerHTML = '<span class="boom">X</span>';
-        }
         else cell.innerHTML = '&nbsp;';
-
         gameDiv.appendChild(cell);
       }
     }
 
-    // ---------- Movement ----------
+    // --------- Movement ---------
     function movePlayer(dx, dy) {
       if (!running || !gameStarted || paused) return;
 
-      if (currentMode === 'shootout') {
-        player.x = clamp(player.x + dx, 0, width - 1);
-        drawGrid();
-        return;
-      }
+      let newX = (player.x + dx + width) % width;
+      let newY = (player.y + dy + height) % height;
 
-      if (currentMode === 'snake') return;
-
-      let newX = player.x + dx;
-      let newY = player.y + dy;
-
-      if (currentMode === 'maze') {
-        if (newX < 0 || newX >= width || newY < 0 || newY >= height) return;
-        if (mazeGrid[newY][newX] === 0) return;
-      } else {
-        newX = (newX + width) % width;
-        newY = (newY + height) % height;
-      }
-
-      // Classic/Grad/Danger: enter goal only from right
-      if (currentMode !== 'maze' && currentMode !== 'survival' && currentMode !== 'combo') {
-        const isTryingToEnterGoal = (newX === goal.x && newY === goal.y);
-        if (isTryingToEnterGoal && dx !== 1) return;
-      }
-
-      if (currentMode === 'survival' && isSurvivalEnemy(newX, newY)) {
-        gameOver("Enemy too close!");
-        return;
-      }
-
-      if (currentMode === 'grad') {
-        if (isObstacle(newX, newY)) return;
-        if (isStaticEnemy(newX, newY)) { gameOver("You bumped into an opponent (,)"); return; }
-
-        if (isPowerup(newX, newY)) {
-          score += 5;
-          addTime(3);
-          showPlusTime(newX, newY, '+5 pts +3 sec', 'green');
-          const idx = powerups.findIndex(p => p.x === newX && p.y === newY);
-          if (idx !== -1) powerups.splice(idx, 1);
-          player.x = newX; player.y = newY;
-          scoreSpan.textContent = score;
-          drawGrid();
+      if (currentMode === 'nobacktrack') {
+        if (isTrailCell(newX, newY)) {
+          gameOver("No backtrack!");
           return;
         }
-      }
-
-      if (currentMode === 'danger') {
-        if (isHazardBoom(newX, newY)) {
-          player.x = newX; player.y = newY;
-          drawGrid();
-          gameOver("You stepped into a blast!");
-          return;
-        }
-      }
-
-      if (currentMode === 'combo') {
-        player.x = newX; player.y = newY;
-        const t = getComboTargetAt(player.x, player.y);
-        if (t) handleComboPickup(t);
-        else drawGrid();
-        return;
-      }
-
-      const isMazeMode = currentMode === 'maze';
-      const goalActivationCondition = isMazeMode
-        ? (newX === goal.x && newY === goal.y)
-        : (newX === goal.x && newY === goal.y && dx === 1);
-
-      if (currentMode !== 'survival' && goalActivationCondition) {
-        player.x = newX; player.y = newY;
-
-        score++;
-        scoreSpan.textContent = score;
-
-        if (currentMode === 'maze') {
-          addTime(20);
-          showPlusTime(newX, newY, '+20 sec', 'green');
-          generateMaze();
-        } else {
-          addTime(2);
-          showPlusTime(newX, newY, '+2 sec', 'green');
-          placeGoal();
-          if (currentMode === 'grad') generateFullMode();
-        }
-
-        drawGrid();
-        return;
       }
 
       player.x = newX;
       player.y = newY;
 
-      if (currentMode === 'danger' && isHazardBoom(player.x, player.y)) {
+      if (currentMode === 'nobacktrack') {
+        trailPush(player.x, player.y);
+        if (player.x === goal.x && player.y === goal.y) {
+          score += 1;
+          scoreSpan.textContent = score;
+          showPlusTime(player.x, player.y, '+1', 'green');
+          placeGoal();
+        }
+      }
+
+      if (currentMode === 'combo') {
+        const t = getComboTargetAt(player.x, player.y);
+        if (t) handleComboPickup(t);
+      }
+
+      // In koth lethal phase, stepping out => immediate lose
+      if (currentMode === 'koth' && kothPhase === 'lethal' && !isInKothZone(player.x, player.y)) {
         drawGrid();
-        gameOver("You got blasted!");
+        gameOver("Out of safe zone!");
         return;
       }
 
       drawGrid();
     }
 
-    // ---------- Start Game ----------
     function startGame(mode) {
       currentMode = mode;
-
       player = { x: 15, y: 10 };
       goal = { x: 0, y: 0 };
       score = 0;
-      time = getInitialTime(mode);
+      time = 60;
 
       running = true;
       gameStarted = true;
       paused = false;
 
-      scoreSpan.textContent = '0';
-      timerSpan.textContent = String(time);
-
       clearAllIntervals();
 
-      obstacles = []; staticEnemies = []; powerups = [];
-      enemies = [];
-      hazards = [];
-      mazeGrid = [];
+      scoreSpan.textContent = '0';
+      substatsDiv.classList.add('hide');
 
-      snake = [];
-      snakeDir = { dx: 1, dy: 0 };
-      snakeNextDir = { dx: 1, dy: 0 };
-
-      shootEnemies = [];
-      bullets = [];
-      shootCooldownMs = 0;
-
-      comboTargets = [];
-      comboIndex = 0;
-      comboStreak = 0;
-      comboStepMsLeft = 0;
-
-      if (mode === 'survival') {
-        substatsDiv.classList.add('hide');
-        generateSurvivalEnemies();
-        survivalEnemiesMoveInterval = setInterval(() => {
-          if (running && !paused) moveSurvivalEnemies();
-        }, 1000);
-      }
-      else if (mode === 'maze') {
-        substatsDiv.classList.add('hide');
-        player = { x: 1, y: 1 };
-        generateMaze();
-      }
-      else if (mode === 'grad') {
-        substatsDiv.classList.add('hide');
-        placeGoal();
-        generateFullMode();
-      }
-      else if (mode === 'classic') {
-        substatsDiv.classList.add('hide');
-        placeGoal();
-        generateClassicMode();
-      }
-      else if (mode === 'danger') {
-        substatsDiv.classList.add('hide');
-        placeGoal();
-        startDangerSystem();
-      }
-      else if (mode === 'snake') {
-        substatsDiv.classList.add('hide');
+      if (mode === 'koth') {
+        // no global timer, use timer slot as phase countdown
         timerSpan.textContent = '--';
-        resetSnakeMode();
-        startSnakeSystem();
-      }
-      else if (mode === 'shootout') {
-        substatsDiv.classList.add('hide');
-        resetShootoutMode();
-        startShootoutSystem();
-      }
-      else if (mode === 'combo') {
+        startKothSystem();
+      } else if (mode === 'nobacktrack') {
+        time = 60;
+        timerSpan.textContent = String(time);
+        placeGoal();
+        trailClear();
+        trailPush(player.x, player.y);
+        startTimer();
+      } else if (mode === 'combo') {
+        time = 60;
+        timerSpan.textContent = String(time);
+        startTimer();
         startComboSystem();
+      } else {
+        // keep other modes unchanged minimal: start normal timer
+        time = 30;
+        timerSpan.textContent = String(time);
+        startTimer();
       }
 
       drawGrid();
@@ -1388,28 +936,10 @@
 
       const key = highscoreKeyForMode(mode);
       highscoreTop.textContent = localStorage.getItem(key) || 0;
-
-      if (mode !== 'snake') startTimer();
-      if (mode === 'combo') resetComboUI(true);
     }
 
-    // ---------- Input ----------
+    // --------- Input ---------
     document.addEventListener('keydown', e => {
-      // Shootout: Space = shoot, no pause on Space
-      if (currentMode === 'shootout') {
-        if (e.code === 'Space') {
-          e.preventDefault();
-          shoot();
-          return;
-        }
-        if (!running || !gameStarted || paused) return;
-        if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) movePlayer(-1, 0);
-        if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) movePlayer(1, 0);
-        if (['ArrowUp','KeyW','KeyЦ','Enter'].includes(e.code)) shoot();
-        return;
-      }
-
-      // Other modes: Space = pause
       if (e.code === 'Space') e.preventDefault();
       if (e.code === 'Space' && gameStarted && running) {
         paused = !paused;
@@ -1419,21 +949,13 @@
 
       if (!running || !gameStarted || paused) return;
 
-      if (currentMode === 'snake') {
-        if (['ArrowUp','KeyW','KeyЦ'].includes(e.code)) setSnakeDirection(0, -1);
-        if (['ArrowDown','KeyS','KeyЫ'].includes(e.code)) setSnakeDirection(0, 1);
-        if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) setSnakeDirection(-1, 0);
-        if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) setSnakeDirection(1, 0);
-        return;
-      }
-
       if (['ArrowUp','KeyW','KeyЦ'].includes(e.code)) movePlayer(0, -1);
       if (['ArrowDown','KeyS','KeyЫ'].includes(e.code)) movePlayer(0, 1);
       if (['ArrowLeft','KeyA','KeyФ'].includes(e.code)) movePlayer(-1, 0);
       if (['ArrowRight','KeyD','KeyВ'].includes(e.code)) movePlayer(1, 0);
     });
 
-    // ---------- Buttons ----------
+    // --------- Buttons ---------
     gradBtn.onclick = () => startGame('grad');
     classicBtn.onclick = () => startGame('classic');
     comboBtn.onclick = () => startGame('combo');
@@ -1443,6 +965,9 @@
     snakeBtn.onclick = () => startGame('snake');
     shootoutBtn.onclick = () => startGame('shootout');
 
+    kothBtn.onclick = () => startGame('koth');
+    nobackBtn.onclick = () => startGame('nobacktrack');
+
     restartBtn.onclick = () => startGame(currentMode);
     restartBtnVictory.onclick = () => startGame(currentMode);
 
@@ -1450,7 +975,6 @@
     menuBtnGameover.onclick = showMenu;
     menuBtnVictory.onclick = showMenu;
 
-    // boot
     showMenu();
   </script>
 </body>
